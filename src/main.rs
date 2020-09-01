@@ -15,6 +15,13 @@ use tantivy::{doc, Index, ReloadPolicy};
 use yaml_rust::YamlEmitter;
 extern crate shellexpand;
 
+// TODO
+// index filename with full path
+// emit only filename by default with option to emit JSON
+// Keep track of the files that we've already indexed and don't index them again
+// keep hash per indexed file and update the index if the hash has changed
+// Pull in skim style dynamic prompting reloading
+
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Doc {
     author: String,

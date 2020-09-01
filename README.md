@@ -9,9 +9,7 @@ Minimal Zettelkasten-inspired Markdown+FrontMatter document indexer and query in
 
 # Run a query against an index
 ./target/debug/zkfm query vault
-```
 
-OLD
-```
-sk --preview='bat --color=always ~/workspace/vimdiary/{}' --ansi -i -c './target/debug/tika -s ~/workspace/vimdiary -q "{}" | jq -r .filename\[0\]'
+# Using SKIM
+sk --preview='bat --color=always ~/workspace/vimdiary/{}' --ansi -i -c './target/debug/zkfm query "{}" | jq -r .filename\[0\]'
 ```

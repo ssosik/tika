@@ -1308,6 +1308,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "tika"
+version = "0.1.0"
+dependencies = [
+ "adler",
+ "chrono",
+ "clap",
+ "color-backtrace",
+ "frontmatter",
+ "glob",
+ "serde",
+ "serde_yaml",
+ "shellexpand",
+ "tantivy",
+ "tempfile",
+ "toml",
+ "unwrap",
+ "yaml-rust",
+]
+
+[[package]]
 name = "time"
 version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1316,6 +1336,15 @@ dependencies = [
  "libc",
  "wasi 0.10.0+wasi-snapshot-preview1",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "toml"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffc92d160b1eef40665be3a05630d003936a3bc7da7421277846c2613e92c71a"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -1447,23 +1476,4 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39f0c922f1a334134dc2f7a8b67dc5d25f0735263feec974345ff706bcf20b0d"
 dependencies = [
  "linked-hash-map",
-]
-
-[[package]]
-name = "zkfm"
-version = "0.1.0"
-dependencies = [
- "adler",
- "chrono",
- "clap",
- "color-backtrace",
- "frontmatter",
- "glob",
- "serde",
- "serde_yaml",
- "shellexpand",
- "tantivy",
- "tempfile",
- "unwrap",
- "yaml-rust",
 ]

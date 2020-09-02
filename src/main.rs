@@ -1,3 +1,5 @@
+use std::io::Read;
+use toml::Value as tomlValue;
 extern crate clap;
 use chrono::DateTime;
 use clap::{App, Arg, SubCommand};
@@ -127,6 +129,19 @@ fn main() -> tantivy::Result<()> {
         let source = matches.value_of("source").unwrap();
 
         // TODO load metadata
+        let checksums_file = index_path.join("checksums.toml");
+        let checksums_fh = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(checksums_file)?;
+        let mut buf_reader = io::BufReader::new(checksums_fh);
+        let mut contents = String::new();
+        buf_reader.read_to_string(&mut contents)?;
+        println!("checksum contents {:?}", contents);
+        let checksums = contents.parse::<tomlValue>().unwrap();
+        let checksum: u32 = checksums["foo"].as_integer().unwrap() as u32;
+        println!("checksum {:?}", checksum);
 
         let mut index_writer = index.writer(100_000_000).unwrap();
 
@@ -144,7 +159,19 @@ fn main() -> tantivy::Result<()> {
                     let thingit = rfc3339.with_timezone(&chrono::Utc);
                     let thedate = Value::Date(thingit);
 
-                    println!("Processing {} checksum {:?}", path.display(), doc.checksum);
+                    //println!("Processing {} checksum {:?}", path.display(), doc.checksum);
+
+                    // TODO check if file exists in TOML and checksum matches;
+                    // if not then index the document and update TOML, else do
+                    // skip
+                    let f = path.to_str().unwrap();
+                    match checksums.get(f) {
+                        Some(c) => {
+                            let checksum: u32 = c.as_integer().unwrap() as u32;
+                            println!("File {} exists in checksums {}", f, checksum);
+                        }
+                        None => println!("No checksum for {}", f),
+                    };
 
                     index_writer.add_document(doc!(
                         author => doc.author,

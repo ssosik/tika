@@ -27,6 +27,8 @@ struct Doc {
     author: String,
     #[serde(skip_deserializing)]
     body: String,
+    #[serde(skip_deserializing)]
+    checksum: u32,
     date: String,
     #[serde(default)]
     filename: String,
@@ -135,6 +137,7 @@ fn main() -> tantivy::Result<()> {
             match entry {
                 Ok(path) => {
                     println!("Processing {:?}", path.display());
+
                     let res = index_file(&path);
                     let doc = unwrap!(res, "Failed to process file {}", path.display());
                     let rfc3339 = DateTime::parse_from_rfc3339(&doc.date).unwrap();
@@ -149,6 +152,9 @@ fn main() -> tantivy::Result<()> {
                         tags => doc.tags.join(" "),
                         title => doc.title,
                     ));
+
+                    println!("File {} checksum {:?}", path.display(), doc.checksum);
+
                 }
                 Err(e) => println!("{:?}", e),
             }
@@ -208,6 +214,7 @@ fn index_file(path: &std::path::PathBuf) -> Result<Doc, io::Error> {
     }
 
     doc.body = content.to_string();
+    doc.checksum = adler::adler32_slice(s.as_bytes());
 
     //println!("doc {:?}", doc);
 

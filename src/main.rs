@@ -16,6 +16,7 @@ use tantivy::schema::*;
 use tantivy::{doc, Index, ReloadPolicy};
 use yaml_rust::YamlEmitter;
 extern crate shellexpand;
+use std::ffi::OsString;
 
 // TODO
 // index filename with full path
@@ -27,6 +28,8 @@ extern crate shellexpand;
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Doc {
     author: String,
+    #[serde(skip_deserializing)]
+    full_path: OsString,
     #[serde(skip_deserializing)]
     body: String,
     #[serde(skip_deserializing)]
@@ -139,7 +142,7 @@ fn main() -> tantivy::Result<()> {
         let mut contents = String::new();
         buf_reader.read_to_string(&mut contents)?;
         println!("checksum contents {:?}", contents);
-        let checksums = contents.parse::<tomlValue>().unwrap();
+        let mut checksums = contents.parse::<tomlValue>().unwrap();
         let checksum: u32 = checksums["foo"].as_integer().unwrap() as u32;
         println!("checksum {:?}", checksum);
 
@@ -159,28 +162,26 @@ fn main() -> tantivy::Result<()> {
                     let thingit = rfc3339.with_timezone(&chrono::Utc);
                     let thedate = Value::Date(thingit);
 
-                    //println!("Processing {} checksum {:?}", path.display(), doc.checksum);
-
-                    // TODO check if file exists in TOML and checksum matches;
-                    // if not then index the document and update TOML, else do
-                    // skip
                     let f = path.to_str().unwrap();
-                    match checksums.get(f) {
-                        Some(c) => {
-                            let checksum: u32 = c.as_integer().unwrap() as u32;
-                            println!("File {} exists in checksums {}", f, checksum);
-                        }
-                        None => println!("No checksum for {}", f),
+                    let mut checksum: u32 = 0;
+                    if let Some(c) = checksums.get(f) {
+                        checksum = c.as_integer().unwrap() as u32;
                     };
 
-                    index_writer.add_document(doc!(
-                        author => doc.author,
-                        body => doc.body,
-                        date => thedate,
-                        filename => doc.filename,
-                        tags => doc.tags.join(" "),
-                        title => doc.title,
-                    ));
+                    if checksum == doc.checksum {
+                        println!("Checksum matches, no need to process {}", f);
+                    } else {
+                        println!("Processing {}", f);
+                        index_writer.add_document(doc!(
+                            author => doc.author,
+                            body => doc.body,
+                            date => thedate,
+                            filename => doc.filename,
+                            tags => doc.tags.join(" "),
+                            title => doc.title,
+                        ));
+                        checksums[f] = tomlValue::from(doc.checksum);
+                    }
                 }
 
                 Err(e) => println!("{:?}", e),

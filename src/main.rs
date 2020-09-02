@@ -126,6 +126,8 @@ fn main() -> tantivy::Result<()> {
     if let Some(matches) = matches.subcommand_matches("index") {
         let source = matches.value_of("source").unwrap();
 
+        // TODO load metadata
+
         let mut index_writer = index.writer(100_000_000).unwrap();
 
         let glob_path = Path::new(&source).join("*.md");
@@ -136,13 +138,13 @@ fn main() -> tantivy::Result<()> {
         for entry in glob(glob_str).expect("Failed to read glob pattern") {
             match entry {
                 Ok(path) => {
-                    println!("Processing {:?}", path.display());
-
                     let res = index_file(&path);
                     let doc = unwrap!(res, "Failed to process file {}", path.display());
                     let rfc3339 = DateTime::parse_from_rfc3339(&doc.date).unwrap();
                     let thingit = rfc3339.with_timezone(&chrono::Utc);
                     let thedate = Value::Date(thingit);
+
+                    println!("Processing {} checksum {:?}", path.display(), doc.checksum);
 
                     index_writer.add_document(doc!(
                         author => doc.author,
@@ -152,10 +154,8 @@ fn main() -> tantivy::Result<()> {
                         tags => doc.tags.join(" "),
                         title => doc.title,
                     ));
-
-                    println!("File {} checksum {:?}", path.display(), doc.checksum);
-
                 }
+
                 Err(e) => println!("{:?}", e),
             }
         }
@@ -192,7 +192,6 @@ fn main() -> tantivy::Result<()> {
         }
     }
 
-    //println!("index_path: {:?}", index_path);
     Ok(())
 }
 
@@ -215,8 +214,6 @@ fn index_file(path: &std::path::PathBuf) -> Result<Doc, io::Error> {
 
     doc.body = content.to_string();
     doc.checksum = adler::adler32_slice(s.as_bytes());
-
-    //println!("doc {:?}", doc);
 
     Ok(doc)
 }

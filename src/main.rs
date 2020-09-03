@@ -6,7 +6,7 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 use std::{
     collections::HashMap, ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path,
 };
-use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index, ReloadPolicy};
+use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index, ReloadPolicy, Term};
 use unwrap::unwrap;
 use yaml_rust::YamlEmitter;
 
@@ -117,6 +117,7 @@ fn main() -> tantivy::Result<()> {
     let body = schema_builder.add_text_field("body", TEXT);
     let date = schema_builder.add_date_field("date", INDEXED | STORED);
     let filename = schema_builder.add_text_field("filename", TEXT | STORED);
+    let full_path = schema_builder.add_text_field("full_path", TEXT);
     let tags = schema_builder.add_text_field("tags", TEXT | STORED);
     let title = schema_builder.add_text_field("title", TEXT | STORED);
 
@@ -173,17 +174,33 @@ fn main() -> tantivy::Result<()> {
                     };
 
                     if checksum == doc.checksum {
+                        println!("💯 {}", f);
+                        //println!("❌ {}", f);
                         //println!("Checksum matches, no need to process {}", f);
                     } else {
+                        if checksum == 0 {
+                            // Brand new doc, first time we've indexed if
+                            println!("🆕 {}", f);
+                        } else {
+                            // We've seen this doc by name before, but the
+                            // checksum is different - delete and reindex the file
+                            let term = Term::from_field_text(full_path, &f);
+                            println!("term {:?} {}", term, term.text());
+                            let ret = index_writer.delete_term(term);
+                            index_writer.commit().unwrap();
+                            println!("✅ {} {}", ret, f);
+                        };
                         index_writer.add_document(doc!(
                             author => doc.author,
                             body => doc.body,
                             date => thedate,
                             filename => doc.filename,
+                            full_path => f,
                             tags => doc.tags.join(" "),
                             title => doc.title,
                         ));
                         *checksums.entry(f.to_string()).or_insert(doc.checksum) = doc.checksum;
+                        //println!("✔ {}", f);
                     }
                 }
 

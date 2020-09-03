@@ -149,15 +149,11 @@ fn main() -> tantivy::Result<()> {
         buf_reader.read_to_string(&mut contents)?;
         //println!("checksum contents {:?}", contents);
 
-        //let mut file_checksums: Checksums;
-        //let mut file_checksums: Checksums = toml::from_str(&contents).unwrap();
-        ////println!("file_checksums {:?}", file_checksums);
-        //let mut checksums = file_checksums.checksums;
-
         let mut file_checksums = match toml::from_str(&contents) {
                 Ok(f) => f,
                 Err(_) => Checksums { checksums: HashMap::new() },
         };
+        ////println!("file_checksums {:?}", file_checksums);
         let mut checksums = file_checksums.checksums;
 
         let mut index_writer = index.writer(100_000_000).unwrap();

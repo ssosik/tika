@@ -2,6 +2,7 @@ use chrono::DateTime;
 use clap::{App, Arg, SubCommand};
 use frontmatter;
 use glob::glob;
+use serde_json::json;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use std::{
     collections::HashMap, ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path,
@@ -125,6 +126,7 @@ fn main() -> tantivy::Result<()> {
 
     let d = tantivy::directory::MmapDirectory::open(index_path).unwrap();
     let index = Index::open_or_create(d, schema.clone()).unwrap();
+    let reader = index.reader()?;
 
     if let Some(matches) = matches.subcommand_matches("index") {
         let source = matches.value_of("source").unwrap();
@@ -172,6 +174,7 @@ fn main() -> tantivy::Result<()> {
                     let thedate = Value::Date(thingit);
 
                     let f = path.to_str().unwrap();
+                    //let checksum: u32 = 0;
                     let checksum: u32 = 0;
                     //let mut checksum: u32 = 0;
                     //if let Some(c) = checksums.get(f) {
@@ -189,10 +192,12 @@ fn main() -> tantivy::Result<()> {
                         } else {
                             // We've seen this doc by name before, but the
                             // checksum is different - delete and reindex the file
-                            let term = Term::from_field_text(full_path, &f);
+                            let term = Term::from_field_text(full_path, f);
+                            //let term = Term::from_field_text(filename, "vkms_terraform_operating_notes.md");
                             //println!("term {:?} {}", term, term.text());
-                            let ret = index_writer.delete_term(term);
+                            let ret = index_writer.delete_term(term.clone());
                             index_writer.commit().unwrap();
+                            reader.reload().unwrap();
                             println!("✅ {} {}", ret, f);
                         };
                         index_writer.add_document(doc!(
@@ -225,12 +230,6 @@ fn main() -> tantivy::Result<()> {
     if let Some(matches) = matches.subcommand_matches("query") {
         let query = matches.value_of("query").unwrap();
 
-        // TODO replace with meaningful queries
-        let reader = index
-            .reader_builder()
-            .reload_policy(ReloadPolicy::OnCommit)
-            .try_into()?;
-
         let searcher = reader.searcher();
 
         let query_parser =
@@ -248,6 +247,14 @@ fn main() -> tantivy::Result<()> {
         for (_score, doc_address) in top_docs {
             let retrieved_doc = searcher.doc(doc_address)?;
             println!("{}", schema.to_json(&retrieved_doc));
+            //let out = json!(schema.to_json(&retrieved_doc));
+            ////println!("{}", *out.get("full_path").unwrap());
+            //if let Some(fp) = out.get("full_path") {
+            //    println!("{}", fp);
+            //} else {
+            //    println!("{}", out);
+            //}
+
         }
     }
 

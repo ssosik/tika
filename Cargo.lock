@@ -1318,6 +1318,7 @@ dependencies = [
  "frontmatter",
  "glob",
  "serde",
+ "serde_json",
  "serde_yaml",
  "shellexpand",
  "tantivy",

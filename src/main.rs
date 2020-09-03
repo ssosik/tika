@@ -1,4 +1,3 @@
-extern crate clap;
 use chrono::DateTime;
 use clap::{App, Arg, SubCommand};
 use frontmatter;
@@ -7,14 +6,9 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 use std::{
     collections::HashMap, ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path,
 };
+use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index, ReloadPolicy};
 use unwrap::unwrap;
-extern crate yaml_rust;
-use tantivy::collector::TopDocs;
-use tantivy::query::QueryParser;
-use tantivy::schema::*;
-use tantivy::{doc, Index, ReloadPolicy};
 use yaml_rust::YamlEmitter;
-extern crate shellexpand;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Checksums {
@@ -24,7 +18,6 @@ struct Checksums {
 // TODO
 // index filename with full path
 // emit only filename by default with option to emit JSON
-// Keep track of the files that we've already indexed and don't index them again
 // keep hash per indexed file and update the index if the hash has changed
 // Pull in skim style dynamic prompting reloading
 
@@ -85,7 +78,7 @@ fn main() -> tantivy::Result<()> {
     let matches = App::new("tika")
         .version("1.0")
         .author("Steve <steve@little-fluffy.cloud>")
-        .about("Things I Know About: Zettlekasten-inspired Markdown+FrontMatter Indexer and query tool")
+        .about("Things I Know About: Zettlekasten-like Markdown+FrontMatter Indexer and query tool")
         .arg(
             Arg::with_name("index_path")
                 .short("i")

@@ -33,6 +33,7 @@ struct Checksums {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Doc {
+    #[serde(default)]
     author: String,
     #[serde(skip_deserializing)]
     full_path: OsString,
@@ -152,7 +153,7 @@ fn main() -> tantivy::Result<()> {
         //let checksum: u32 = checksums["foo"].as_integer().unwrap() as u32;
         //println!("checksum {:?}", checksum);
 
-        let file_checksums: Checksums = toml::from_str(&contents).unwrap();
+        let mut file_checksums: Checksums = toml::from_str(&contents).unwrap();
         println!("file_checksums {:?}", file_checksums);
         let mut checksums = file_checksums.checksums;
 
@@ -167,6 +168,7 @@ fn main() -> tantivy::Result<()> {
         for entry in glob(glob_str).expect("Failed to read glob pattern") {
             match entry {
                 Ok(path) => {
+                    println!("Processing {:?}", path);
                     let res = index_file(&path);
                     let doc = unwrap!(res, "Failed to process file {}", path.display());
                     let rfc3339 = DateTime::parse_from_rfc3339(&doc.date).unwrap();
@@ -182,7 +184,6 @@ fn main() -> tantivy::Result<()> {
                     if checksum == doc.checksum {
                         println!("Checksum matches, no need to process {}", f);
                     } else {
-                        println!("Processing {}", f);
                         index_writer.add_document(doc!(
                             author => doc.author,
                             body => doc.body,
@@ -199,6 +200,10 @@ fn main() -> tantivy::Result<()> {
                 Err(e) => println!("{:?}", e),
             }
         }
+
+        file_checksums.checksums = checksums;
+        let toml_text = toml::to_string(&file_checksums).unwrap();
+        println!("TOML Text {:?}", toml_text);
 
         index_writer.commit().unwrap();
     }

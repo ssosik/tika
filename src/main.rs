@@ -1,12 +1,12 @@
-use std::io::Read;
 extern crate clap;
 use chrono::DateTime;
 use clap::{App, Arg, SubCommand};
 use frontmatter;
 use glob::glob;
 use serde::{de, Deserialize, Deserializer, Serialize};
-use std::marker::PhantomData;
-use std::{fmt, fs, io, path::Path};
+use std::{
+    collections::HashMap, ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path,
+};
 use unwrap::unwrap;
 extern crate yaml_rust;
 use tantivy::collector::TopDocs;
@@ -15,8 +15,6 @@ use tantivy::schema::*;
 use tantivy::{doc, Index, ReloadPolicy};
 use yaml_rust::YamlEmitter;
 extern crate shellexpand;
-use std::ffi::OsString;
-use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Checksums {
@@ -150,8 +148,10 @@ fn main() -> tantivy::Result<()> {
         //println!("checksum contents {:?}", contents);
 
         let mut file_checksums = match toml::from_str(&contents) {
-                Ok(f) => f,
-                Err(_) => Checksums { checksums: HashMap::new() },
+            Ok(f) => f,
+            Err(_) => Checksums {
+                checksums: HashMap::new(),
+            },
         };
         ////println!("file_checksums {:?}", file_checksums);
         let mut checksums = file_checksums.checksums;
@@ -181,7 +181,6 @@ fn main() -> tantivy::Result<()> {
 
                     if checksum == doc.checksum {
                         //println!("Checksum matches, no need to process {}", f);
-
                     } else {
                         index_writer.add_document(doc!(
                             author => doc.author,

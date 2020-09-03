@@ -82,7 +82,7 @@ where
 fn main() -> tantivy::Result<()> {
     color_backtrace::install();
 
-    let default_index_dir = shellexpand::tilde("~/.config/tika/");
+    let default_index_dir = shellexpand::tilde("~/.local/share/tika/");
 
     let matches = App::new("tika")
         .version("1.0")
@@ -149,8 +149,15 @@ fn main() -> tantivy::Result<()> {
         buf_reader.read_to_string(&mut contents)?;
         //println!("checksum contents {:?}", contents);
 
-        let mut file_checksums: Checksums = toml::from_str(&contents).unwrap();
-        //println!("file_checksums {:?}", file_checksums);
+        //let mut file_checksums: Checksums;
+        //let mut file_checksums: Checksums = toml::from_str(&contents).unwrap();
+        ////println!("file_checksums {:?}", file_checksums);
+        //let mut checksums = file_checksums.checksums;
+
+        let mut file_checksums = match toml::from_str(&contents) {
+                Ok(f) => f,
+                Err(_) => Checksums { checksums: HashMap::new() },
+        };
         let mut checksums = file_checksums.checksums;
 
         let mut index_writer = index.writer(100_000_000).unwrap();

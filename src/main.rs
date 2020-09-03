@@ -117,7 +117,7 @@ fn main() -> tantivy::Result<()> {
     let body = schema_builder.add_text_field("body", TEXT);
     let date = schema_builder.add_date_field("date", INDEXED | STORED);
     let filename = schema_builder.add_text_field("filename", TEXT | STORED);
-    let full_path = schema_builder.add_text_field("full_path", TEXT);
+    let full_path = schema_builder.add_text_field("full_path", TEXT | STORED);
     let tags = schema_builder.add_text_field("tags", TEXT | STORED);
     let title = schema_builder.add_text_field("title", TEXT | STORED);
 
@@ -152,6 +152,10 @@ fn main() -> tantivy::Result<()> {
 
         let mut index_writer = index.writer(100_000_000).unwrap();
 
+        // Clear out the index so we can reindex everything
+        index_writer.delete_all_documents().unwrap();
+        index_writer.commit().unwrap();
+
         let glob_path = Path::new(&source).join("*.md");
         let glob_str = glob_path.to_str().unwrap();
 
@@ -168,10 +172,11 @@ fn main() -> tantivy::Result<()> {
                     let thedate = Value::Date(thingit);
 
                     let f = path.to_str().unwrap();
-                    let mut checksum: u32 = 0;
-                    if let Some(c) = checksums.get(f) {
-                        checksum = *c;
-                    };
+                    let checksum: u32 = 0;
+                    //let mut checksum: u32 = 0;
+                    //if let Some(c) = checksums.get(f) {
+                    //    checksum = *c;
+                    //};
 
                     if checksum == doc.checksum {
                         println!("💯 {}", f);
@@ -185,7 +190,7 @@ fn main() -> tantivy::Result<()> {
                             // We've seen this doc by name before, but the
                             // checksum is different - delete and reindex the file
                             let term = Term::from_field_text(full_path, &f);
-                            println!("term {:?} {}", term, term.text());
+                            //println!("term {:?} {}", term, term.text());
                             let ret = index_writer.delete_term(term);
                             index_writer.commit().unwrap();
                             println!("✅ {} {}", ret, f);

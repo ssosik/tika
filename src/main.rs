@@ -17,6 +17,12 @@ use tantivy::{doc, Index, ReloadPolicy};
 use yaml_rust::YamlEmitter;
 extern crate shellexpand;
 use std::ffi::OsString;
+use std::collections::HashMap;
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Checksums {
+    checksums: HashMap<String, u32>,
+}
 
 // TODO
 // index filename with full path
@@ -76,12 +82,12 @@ where
 fn main() -> tantivy::Result<()> {
     color_backtrace::install();
 
-    let default_index_dir = shellexpand::tilde("~/.config/zkfm/");
+    let default_index_dir = shellexpand::tilde("~/.config/tika/");
 
-    let matches = App::new("zkfm")
+    let matches = App::new("tika")
         .version("1.0")
         .author("Steve <steve@little-fluffy.cloud>")
-        .about("Zettlekasten-inspired Markdown+FrontMatter Indexer and query tool")
+        .about("Things I Know About: Zettlekasten-inspired Markdown+FrontMatter Indexer and query tool")
         .arg(
             Arg::with_name("index_path")
                 .short("i")
@@ -142,9 +148,14 @@ fn main() -> tantivy::Result<()> {
         let mut contents = String::new();
         buf_reader.read_to_string(&mut contents)?;
         println!("checksum contents {:?}", contents);
-        let mut checksums = contents.parse::<tomlValue>().unwrap();
-        let checksum: u32 = checksums["foo"].as_integer().unwrap() as u32;
-        println!("checksum {:?}", checksum);
+        //let checksums = contents.parse::<tomlValue>().unwrap();
+        //let checksum: u32 = checksums["foo"].as_integer().unwrap() as u32;
+        //println!("checksum {:?}", checksum);
+
+        let file_checksums: Checksums = toml::from_str(&contents).unwrap();
+        println!("file_checksums {:?}", file_checksums);
+        let mut checksums = file_checksums.checksums;
+
 
         let mut index_writer = index.writer(100_000_000).unwrap();
 
@@ -165,7 +176,7 @@ fn main() -> tantivy::Result<()> {
                     let f = path.to_str().unwrap();
                     let mut checksum: u32 = 0;
                     if let Some(c) = checksums.get(f) {
-                        checksum = c.as_integer().unwrap() as u32;
+                        checksum = *c;
                     };
 
                     if checksum == doc.checksum {
@@ -180,7 +191,8 @@ fn main() -> tantivy::Result<()> {
                             tags => doc.tags.join(" "),
                             title => doc.title,
                         ));
-                        checksums[f] = tomlValue::from(doc.checksum);
+                        //*checksums.get_mut(f).unwrap() = doc.checksum;
+                        *checksums.entry(f.to_string()).or_insert(doc.checksum) = doc.checksum;
                     }
                 }
 

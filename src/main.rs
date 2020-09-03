@@ -1,5 +1,4 @@
 use std::io::Read;
-use toml::Value as tomlValue;
 extern crate clap;
 use chrono::DateTime;
 use clap::{App, Arg, SubCommand};
@@ -148,27 +147,23 @@ fn main() -> tantivy::Result<()> {
         let mut buf_reader = io::BufReader::new(checksums_fh);
         let mut contents = String::new();
         buf_reader.read_to_string(&mut contents)?;
-        println!("checksum contents {:?}", contents);
-        //let checksums = contents.parse::<tomlValue>().unwrap();
-        //let checksum: u32 = checksums["foo"].as_integer().unwrap() as u32;
-        //println!("checksum {:?}", checksum);
+        //println!("checksum contents {:?}", contents);
 
         let mut file_checksums: Checksums = toml::from_str(&contents).unwrap();
-        println!("file_checksums {:?}", file_checksums);
+        //println!("file_checksums {:?}", file_checksums);
         let mut checksums = file_checksums.checksums;
-
 
         let mut index_writer = index.writer(100_000_000).unwrap();
 
         let glob_path = Path::new(&source).join("*.md");
         let glob_str = glob_path.to_str().unwrap();
 
-        println!("Directory: {}", glob_str);
+        //println!("Directory: {}", glob_str);
 
         for entry in glob(glob_str).expect("Failed to read glob pattern") {
             match entry {
                 Ok(path) => {
-                    println!("Processing {:?}", path);
+                    //println!("Processing {:?}", path);
                     let res = index_file(&path);
                     let doc = unwrap!(res, "Failed to process file {}", path.display());
                     let rfc3339 = DateTime::parse_from_rfc3339(&doc.date).unwrap();
@@ -182,7 +177,8 @@ fn main() -> tantivy::Result<()> {
                     };
 
                     if checksum == doc.checksum {
-                        println!("Checksum matches, no need to process {}", f);
+                        //println!("Checksum matches, no need to process {}", f);
+
                     } else {
                         index_writer.add_document(doc!(
                             author => doc.author,
@@ -192,7 +188,6 @@ fn main() -> tantivy::Result<()> {
                             tags => doc.tags.join(" "),
                             title => doc.title,
                         ));
-                        //*checksums.get_mut(f).unwrap() = doc.checksum;
                         *checksums.entry(f.to_string()).or_insert(doc.checksum) = doc.checksum;
                     }
                 }
@@ -203,7 +198,9 @@ fn main() -> tantivy::Result<()> {
 
         file_checksums.checksums = checksums;
         let toml_text = toml::to_string(&file_checksums).unwrap();
-        println!("TOML Text {:?}", toml_text);
+        //println!("TOML Text {:?}", toml_text);
+        let checksums_file = index_path.join("checksums.toml");
+        fs::write(checksums_file, toml_text).expect("Unable to write TOML file");
 
         index_writer.commit().unwrap();
     }

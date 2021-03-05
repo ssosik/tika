@@ -144,7 +144,6 @@ fn main() -> tantivy::Result<()> {
         match entry {
             Ok(path) => {
                 if let Ok(doc) = index_file(&path) {
-                    //let doc = unwrap!(res, "Failed to process file {}", path.display());
                     let rfc3339 = DateTime::parse_from_rfc3339(&doc.date).unwrap();
                     let thingit = rfc3339.with_timezone(&chrono::Utc);
                     let thedate = Value::Date(thingit);
@@ -224,6 +223,11 @@ fn index_file(path: &std::path::PathBuf) -> Result<Doc, io::Error> {
 
             return Ok(doc);
         }
-        None => return Err(Error::new(ErrorKind::Other, "oh no!")),
+        None => {
+            return Err(Error::new(
+                ErrorKind::Other,
+                format!("Failed to process file {}", path.display()),
+            ))
+        }
     }
 }

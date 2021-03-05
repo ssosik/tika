@@ -1,5 +1,9 @@
+use serde_json::json;
 use std::io::{Error, ErrorKind};
 extern crate shellexpand;
+extern crate skim;
+use skim::prelude::*;
+use std::io::Cursor;
 
 use chrono::DateTime;
 use clap::{App, Arg, SubCommand};
@@ -8,9 +12,8 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 use std::{
     collections::HashMap, ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path,
 };
-use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index, Term};
+use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index};
 use toml::Value as tomlVal;
-use unwrap::unwrap;
 use yaml_rust::YamlEmitter;
 
 // TODO
@@ -170,12 +173,11 @@ fn main() -> tantivy::Result<()> {
     index_writer.commit().unwrap();
 
     let reader = index.reader()?;
+    let searcher = reader.searcher();
 
     if let Some(cli) = cli.subcommand_matches("query") {
         let query = cli.value_of("query").unwrap();
         println!("Query {}", query);
-
-        let searcher = reader.searcher();
 
         let query_parser =
             QueryParser::for_index(&index, vec![author, body, filename, tags, title]);
@@ -199,6 +201,71 @@ fn main() -> tantivy::Result<()> {
             //} else {
             //    println!("{}", out);
             //}
+        }
+    } else {
+        // Use interactive fuzzy finder
+
+        // SKIM TEST
+        let options = SkimOptionsBuilder::default()
+            .height(Some("50%"))
+            .multi(true)
+            .build()
+            .unwrap();
+        let item_reader = SkimItemReader::default();
+
+        //==================================================
+        // first run
+        let query_parser =
+            QueryParser::for_index(&index, vec![author, body, filename, tags, title]);
+        let query = query_parser.parse_query("*")?;
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
+        let input = "";
+        for (_score, doc_address) in top_docs {
+            let data = searcher.doc(doc_address)?;
+            println!("foo {}", schema.to_json(&data));
+            //let d: Doc = serde_json::from_str(&schema.to_json(&data)).unwrap();
+            //println!("{}", d.filename);
+            //let blob = json!(schema.to_json(&data));
+            //if let Ok(blob) = schema.parse_document(&schema.to_json(&data)) {
+            //    println!("foo {}", blob.get_first("filename"));
+            //}
+            //println!("foo {}", blob["filename"]);
+            ////if let Some(fname) =data.get_first("filename") {
+            //let b2 = blob.as_object().unwrap();
+            //println!("{}", b2["filename"]);)
+            //let m: HashMap<String, Value> = serde_json::from_str(&data);
+            //for (key, value) in m {
+            //    if value["filename"] == true {
+            //        println!("{}:::{}", key, value);
+            //    }
+            //}
+            //if let Some(f) = blob("filename") {
+            //    println!("{}", f);
+            //} else {
+            //    println!("inner no");
+            //}
+        }
+
+        let input = "aaaaa\nbbbb\nccc";
+        let items = item_reader.of_bufread(Cursor::new(input));
+        let selected_items = Skim::run_with(&options, Some(items))
+            .map(|out| out.selected_items)
+            .unwrap_or_else(Vec::new);
+
+        for item in selected_items.iter() {
+            print!("{}{}", item.output(), "\n");
+        }
+
+        //==================================================
+        // second run
+        let input = "11111\n22222\n333333333";
+        let items = item_reader.of_bufread(Cursor::new(input));
+        let selected_items = Skim::run_with(&options, Some(items))
+            .map(|out| out.selected_items)
+            .unwrap_or_else(Vec::new);
+
+        for item in selected_items.iter() {
+            print!("{}{}", item.output(), "\n");
         }
     }
 

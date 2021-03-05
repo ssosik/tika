@@ -215,7 +215,6 @@ fn main() -> tantivy::Result<()> {
             if let Some(field) = schema.get_field("filename") {
                 if let Some(val) = data.get_first(field) {
                     if let Some(name) = val.text() {
-                        println!("d {}", name);
                         input.push_str(name);
                         input.push('\n');
                     }
@@ -229,19 +228,7 @@ fn main() -> tantivy::Result<()> {
             .unwrap_or_else(Vec::new);
 
         for item in selected_items.iter() {
-            print!("{}{}", item.output(), "\n");
-        }
-
-        //==================================================
-        // second run
-        let input = "11111\n22222\n333333333";
-        let items = item_reader.of_bufread(Cursor::new(input));
-        let selected_items = Skim::run_with(&options, Some(items))
-            .map(|out| out.selected_items)
-            .unwrap_or_else(Vec::new);
-
-        for item in selected_items.iter() {
-            print!("{}{}", item.output(), "\n");
+            println!("{}", item.output());
         }
     }
 

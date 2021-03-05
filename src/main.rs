@@ -139,7 +139,6 @@ fn main() -> tantivy::Result<()> {
         let mut buf_reader = io::BufReader::new(checksums_fh);
         let mut contents = String::new();
         buf_reader.read_to_string(&mut contents)?;
-        //println!("checksum contents {:?}", contents);
 
         let mut file_checksums = match toml::from_str(&contents) {
             Ok(f) => f,
@@ -147,14 +146,14 @@ fn main() -> tantivy::Result<()> {
                 checksums: HashMap::new(),
             },
         };
-        ////println!("file_checksums {:?}", file_checksums);
+        //println!("file_checksums {:?}", file_checksums);
         let mut checksums = file_checksums.checksums;
 
         let mut index_writer = index.writer(100_000_000).unwrap();
 
         // Clear out the index so we can reindex everything
-        index_writer.delete_all_documents().unwrap();
-        index_writer.commit().unwrap();
+        //index_writer.delete_all_documents().unwrap();
+        //index_writer.commit().unwrap();
 
         let glob_path = Path::new(&source).join("*.md");
         let glob_str = glob_path.to_str().unwrap();
@@ -173,11 +172,10 @@ fn main() -> tantivy::Result<()> {
 
                     let f = path.to_str().unwrap();
                     //let checksum: u32 = 0;
-                    let checksum: u32 = 0;
-                    //let mut checksum: u32 = 0;
-                    //if let Some(c) = checksums.get(f) {
-                    //    checksum = *c;
-                    //};
+                    let mut checksum: u32 = 0;
+                    if let Some(c) = checksums.get(f) {
+                        checksum = *c;
+                    };
 
                     if checksum == doc.checksum {
                         println!("💯 {}", f);
@@ -218,7 +216,7 @@ fn main() -> tantivy::Result<()> {
 
         file_checksums.checksums = checksums;
         let toml_text = toml::to_string(&file_checksums).unwrap();
-        println!("TOML Text {:?}", toml_text);
+        //println!("TOML Text {:?}", toml_text);
         let checksums_file = index_path.join("checksums.toml");
         fs::write(checksums_file, toml_text).expect("Unable to write TOML file");
 

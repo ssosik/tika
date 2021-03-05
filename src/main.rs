@@ -1,4 +1,3 @@
-use serde_json::json;
 use std::io::{Error, ErrorKind};
 extern crate shellexpand;
 extern crate skim;
@@ -9,9 +8,7 @@ use chrono::DateTime;
 use clap::{App, Arg, SubCommand};
 use glob::glob;
 use serde::{de, Deserialize, Deserializer, Serialize};
-use std::{
-    collections::HashMap, ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path,
-};
+use std::{ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path};
 use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index};
 use toml::Value as tomlVal;
 use yaml_rust::YamlEmitter;
@@ -194,13 +191,6 @@ fn main() -> tantivy::Result<()> {
         for (_score, doc_address) in top_docs {
             let retrieved_doc = searcher.doc(doc_address)?;
             println!("{}", schema.to_json(&retrieved_doc));
-            //let out = json!(schema.to_json(&retrieved_doc));
-            ////println!("{}", *out.get("full_path").unwrap());
-            //if let Some(fp) = out.get("full_path") {
-            //    println!("{}", fp);
-            //} else {
-            //    println!("{}", out);
-            //}
         }
     } else {
         // Use interactive fuzzy finder
@@ -219,56 +209,21 @@ fn main() -> tantivy::Result<()> {
             QueryParser::for_index(&index, vec![author, body, filename, tags, title]);
         let query = query_parser.parse_query("*")?;
         let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
-        let input = "";
+        let mut input = String::from("");
         for (_score, doc_address) in top_docs {
             let data = searcher.doc(doc_address)?;
-            //let d = schema.to_named_doc(&data);
-            //println!("d {:?}", d);
-            //println!("d {}", d.get("filename"));
             if let Some(field) = schema.get_field("filename") {
                 if let Some(val) = data.get_first(field) {
                     if let Some(name) = val.text() {
                         println!("d {}", name);
+                        input.push_str(name);
+                        input.push('\n');
                     }
                 }
             }
-
-            //println!("foo {}", schema.to_json(&data));
-            //let s = schema.to_json(&data);
-            //if let Ok(d) = serde_json::from_str(&s){
-            //println!("{}", d);
-            //} else {
-            //println!("no");
-            //}
-            //let out = json!(schema.to_json(&data));
-            ////println!("{}", *out.get("full_path").unwrap());
-            //if let Some(fp) = out.get("full_path") {
-            //    println!("fp {}", fp);
-            //} else {
-            //    println!("out {}", out);
-            //}
-            //let blob = json!(schema.to_json(&data));
-            //if let Ok(blob) = schema.parse_document(&schema.to_json(&data)) {
-            //    println!("foo {}", blob.get_first("filename"));
-            //}
-            //println!("foo {}", blob["filename"]);
-            ////if let Some(fname) =data.get_first("filename") {
-            //let b2 = blob.as_object().unwrap();
-            //println!("{}", b2["filename"]);)
-            //let m: HashMap<String, Value> = serde_json::from_str(&data);
-            //for (key, value) in m {
-            //    if value["filename"] == true {
-            //        println!("{}:::{}", key, value);
-            //    }
-            //}
-            //if let Some(f) = blob("filename") {
-            //    println!("{}", f);
-            //} else {
-            //    println!("inner no");
-            //}
         }
 
-        let input = "aaaaa\nbbbb\nccc";
+        //let input = "aaaaa\nbbbb\nccc";
         let items = item_reader.of_bufread(Cursor::new(input));
         let selected_items = Skim::run_with(&options, Some(items))
             .map(|out| out.selected_items)
@@ -314,13 +269,11 @@ fn index_file(path: &std::path::PathBuf) -> Result<Doc, io::Error> {
             doc.body = content.to_string();
             doc.checksum = adler::adler32_slice(s.as_bytes());
 
-            return Ok(doc);
+            Ok(doc)
         }
-        None => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                format!("Failed to process file {}", path.display()),
-            ))
-        }
+        None => Err(Error::new(
+            ErrorKind::Other,
+            format!("Failed to process file {}", path.display()),
+        )),
     }
 }

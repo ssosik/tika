@@ -96,7 +96,6 @@ fn main() -> tantivy::Result<()> {
                 .short("s")
                 .value_name("DIRECTORY")
                 .help("Glob path to markdown files to load")
-                .default_value(&default_config_file)
                 .takes_value(true),
         )
         .subcommand(

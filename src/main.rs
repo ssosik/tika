@@ -222,9 +222,31 @@ fn main() -> tantivy::Result<()> {
         let input = "";
         for (_score, doc_address) in top_docs {
             let data = searcher.doc(doc_address)?;
-            println!("foo {}", schema.to_json(&data));
-            //let d: Doc = serde_json::from_str(&schema.to_json(&data)).unwrap();
-            //println!("{}", d.filename);
+            //let d = schema.to_named_doc(&data);
+            //println!("d {:?}", d);
+            //println!("d {}", d.get("filename"));
+            if let Some(field) = schema.get_field("filename") {
+                if let Some(val) = data.get_first(field) {
+                    if let Some(name) = val.text() {
+                        println!("d {}", name);
+                    }
+                }
+            }
+
+            //println!("foo {}", schema.to_json(&data));
+            //let s = schema.to_json(&data);
+            //if let Ok(d) = serde_json::from_str(&s){
+            //println!("{}", d);
+            //} else {
+            //println!("no");
+            //}
+            //let out = json!(schema.to_json(&data));
+            ////println!("{}", *out.get("full_path").unwrap());
+            //if let Some(fp) = out.get("full_path") {
+            //    println!("fp {}", fp);
+            //} else {
+            //    println!("out {}", out);
+            //}
             //let blob = json!(schema.to_json(&data));
             //if let Ok(blob) = schema.parse_document(&schema.to_json(&data)) {
             //    println!("foo {}", blob.get_first("filename"));

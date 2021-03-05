@@ -1,13 +1,11 @@
 use chrono::DateTime;
 use clap::{App, Arg, SubCommand};
-use frontmatter;
 use glob::glob;
 use serde::{de, Deserialize, Deserializer, Serialize};
-use serde_json::json;
 use std::{
     collections::HashMap, ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path,
 };
-use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index, ReloadPolicy, Term};
+use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index, Term};
 use unwrap::unwrap;
 use yaml_rust::YamlEmitter;
 
@@ -268,7 +266,7 @@ fn index_file(path: &std::path::PathBuf) -> Result<Doc, io::Error> {
     }
 
     let mut doc: Doc = serde_yaml::from_str(&out_str).unwrap();
-    if doc.filename == "".to_string() {
+    if doc.filename == *"" {
         doc.filename = String::from(path.file_name().unwrap().to_str().unwrap());
     }
 

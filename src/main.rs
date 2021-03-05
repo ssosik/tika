@@ -223,7 +223,6 @@ fn main() -> tantivy::Result<()> {
             }
         }
 
-        //let input = "aaaaa\nbbbb\nccc";
         let items = item_reader.of_bufread(Cursor::new(input));
         let selected_items = Skim::run_with(&options, Some(items))
             .map(|out| out.selected_items)

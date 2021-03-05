@@ -1,25 +1,37 @@
-extern crate clap;
 use chrono::DateTime;
 use clap::{App, Arg, SubCommand};
 use frontmatter;
 use glob::glob;
+use serde_json::json;
 use serde::{de, Deserialize, Deserializer, Serialize};
-use std::marker::PhantomData;
-use std::{fmt, fs, io, path::Path};
+use std::{
+    collections::HashMap, ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path,
+};
+use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index, ReloadPolicy, Term};
 use unwrap::unwrap;
-extern crate yaml_rust;
-use tantivy::collector::TopDocs;
-use tantivy::query::QueryParser;
-use tantivy::schema::*;
-use tantivy::{doc, Index, ReloadPolicy};
 use yaml_rust::YamlEmitter;
-extern crate shellexpand;
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Checksums {
+    checksums: HashMap<String, u32>,
+}
+
+// TODO
+// index filename with full path
+// emit only filename by default with option to emit JSON
+// keep hash per indexed file and update the index if the hash has changed
+// Pull in skim style dynamic prompting reloading
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Doc {
+    #[serde(default)]
     author: String,
     #[serde(skip_deserializing)]
+    full_path: OsString,
+    #[serde(skip_deserializing)]
     body: String,
+    #[serde(skip_deserializing)]
+    checksum: u32,
     date: String,
     #[serde(default)]
     filename: String,
@@ -62,12 +74,12 @@ where
 fn main() -> tantivy::Result<()> {
     color_backtrace::install();
 
-    let default_index_dir = shellexpand::tilde("~/.config/tika/");
+    let default_index_dir = shellexpand::tilde("~/.local/share/tika/");
 
     let matches = App::new("tika")
         .version("1.0")
         .author("Steve <steve@little-fluffy.cloud>")
-        .about("Zettlekasten-inspired Markdown+FrontMatter Indexer and query tool")
+        .about("Things I Know About: Zettlekasten-like Markdown+FrontMatter Indexer and query tool")
         .arg(
             Arg::with_name("index_path")
                 .short("i")
@@ -76,18 +88,12 @@ fn main() -> tantivy::Result<()> {
                 .default_value(&default_index_dir)
                 .takes_value(true),
         )
-        .arg(
-            Arg::with_name("source")
-                .short("s")
-                .long("source")
-                .value_name("DIRECTORY")
-                .help("Set the source directory containing Markdown docs with Frontmatter")
-                .takes_value(true),
-        )
         .subcommand(
             SubCommand::with_name("index")
                 .about("Load data from a source directory")
-                .arg(Arg::with_name("source").help("print debug information verbosely")),
+                .arg(Arg::with_name("source")
+                .required(true)
+                .help("print debug information verbosely")),
         )
         .subcommand(
             SubCommand::with_name("query")
@@ -106,6 +112,7 @@ fn main() -> tantivy::Result<()> {
     let body = schema_builder.add_text_field("body", TEXT);
     let date = schema_builder.add_date_field("date", INDEXED | STORED);
     let filename = schema_builder.add_text_field("filename", TEXT | STORED);
+    let full_path = schema_builder.add_text_field("full_path", TEXT | STORED);
     let tags = schema_builder.add_text_field("tags", TEXT | STORED);
     let title = schema_builder.add_text_field("title", TEXT | STORED);
 
@@ -113,11 +120,37 @@ fn main() -> tantivy::Result<()> {
 
     let d = tantivy::directory::MmapDirectory::open(index_path).unwrap();
     let index = Index::open_or_create(d, schema.clone()).unwrap();
+    let reader = index.reader()?;
 
     if let Some(matches) = matches.subcommand_matches("index") {
         let source = matches.value_of("source").unwrap();
 
+        // TODO load metadata
+        let checksums_file = index_path.join("checksums.toml");
+        let checksums_fh = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(checksums_file)?;
+        let mut buf_reader = io::BufReader::new(checksums_fh);
+        let mut contents = String::new();
+        buf_reader.read_to_string(&mut contents)?;
+        //println!("checksum contents {:?}", contents);
+
+        let mut file_checksums = match toml::from_str(&contents) {
+            Ok(f) => f,
+            Err(_) => Checksums {
+                checksums: HashMap::new(),
+            },
+        };
+        ////println!("file_checksums {:?}", file_checksums);
+        let mut checksums = file_checksums.checksums;
+
         let mut index_writer = index.writer(100_000_000).unwrap();
+
+        // Clear out the index so we can reindex everything
+        index_writer.delete_all_documents().unwrap();
+        index_writer.commit().unwrap();
 
         let glob_path = Path::new(&source).join("*.md");
         let glob_str = glob_path.to_str().unwrap();
@@ -127,37 +160,69 @@ fn main() -> tantivy::Result<()> {
         for entry in glob(glob_str).expect("Failed to read glob pattern") {
             match entry {
                 Ok(path) => {
-                    println!("Processing {:?}", path.display());
+                    //println!("Processing {:?}", path);
                     let res = index_file(&path);
                     let doc = unwrap!(res, "Failed to process file {}", path.display());
                     let rfc3339 = DateTime::parse_from_rfc3339(&doc.date).unwrap();
                     let thingit = rfc3339.with_timezone(&chrono::Utc);
                     let thedate = Value::Date(thingit);
 
-                    index_writer.add_document(doc!(
-                        author => doc.author,
-                        body => doc.body,
-                        date => thedate,
-                        filename => doc.filename,
-                        tags => doc.tags.join(" "),
-                        title => doc.title,
-                    ));
+                    let f = path.to_str().unwrap();
+                    //let checksum: u32 = 0;
+                    let checksum: u32 = 0;
+                    //let mut checksum: u32 = 0;
+                    //if let Some(c) = checksums.get(f) {
+                    //    checksum = *c;
+                    //};
+
+                    if checksum == doc.checksum {
+                        println!("💯 {}", f);
+                        //println!("❌ {}", f);
+                        //println!("Checksum matches, no need to process {}", f);
+                    } else {
+                        if checksum == 0 {
+                            // Brand new doc, first time we've indexed if
+                            println!("🆕 {}", f);
+                        } else {
+                            // We've seen this doc by name before, but the
+                            // checksum is different - delete and reindex the file
+                            let term = Term::from_field_text(full_path, f);
+                            //let term = Term::from_field_text(filename, "vkms_terraform_operating_notes.md");
+                            //println!("term {:?} {}", term, term.text());
+                            let ret = index_writer.delete_term(term.clone());
+                            index_writer.commit().unwrap();
+                            reader.reload().unwrap();
+                            println!("✅ {} {}", ret, f);
+                        };
+                        index_writer.add_document(doc!(
+                            author => doc.author,
+                            body => doc.body,
+                            date => thedate,
+                            filename => doc.filename,
+                            full_path => f,
+                            tags => doc.tags.join(" "),
+                            title => doc.title,
+                        ));
+                        *checksums.entry(f.to_string()).or_insert(doc.checksum) = doc.checksum;
+                        //println!("✔ {}", f);
+                    }
                 }
+
                 Err(e) => println!("{:?}", e),
             }
         }
+
+        file_checksums.checksums = checksums;
+        let toml_text = toml::to_string(&file_checksums).unwrap();
+        //println!("TOML Text {:?}", toml_text);
+        let checksums_file = index_path.join("checksums.toml");
+        fs::write(checksums_file, toml_text).expect("Unable to write TOML file");
 
         index_writer.commit().unwrap();
     }
 
     if let Some(matches) = matches.subcommand_matches("query") {
         let query = matches.value_of("query").unwrap();
-
-        // TODO replace with meaningful queries
-        let reader = index
-            .reader_builder()
-            .reload_policy(ReloadPolicy::OnCommit)
-            .try_into()?;
 
         let searcher = reader.searcher();
 
@@ -176,10 +241,17 @@ fn main() -> tantivy::Result<()> {
         for (_score, doc_address) in top_docs {
             let retrieved_doc = searcher.doc(doc_address)?;
             println!("{}", schema.to_json(&retrieved_doc));
+            //let out = json!(schema.to_json(&retrieved_doc));
+            ////println!("{}", *out.get("full_path").unwrap());
+            //if let Some(fp) = out.get("full_path") {
+            //    println!("{}", fp);
+            //} else {
+            //    println!("{}", out);
+            //}
+
         }
     }
 
-    //println!("index_path: {:?}", index_path);
     Ok(())
 }
 
@@ -201,8 +273,7 @@ fn index_file(path: &std::path::PathBuf) -> Result<Doc, io::Error> {
     }
 
     doc.body = content.to_string();
-
-    //println!("doc {:?}", doc);
+    doc.checksum = adler::adler32_slice(s.as_bytes());
 
     Ok(doc)
 }

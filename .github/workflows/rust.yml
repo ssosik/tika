@@ -26,3 +26,4 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         args: 'target/debug/tika'
+        releaseId: "v0.2.0"

@@ -1,4 +1,5 @@
 use std::io::{Error, ErrorKind};
+extern crate shellexpand;
 
 use chrono::DateTime;
 use clap::{App, Arg, SubCommand};
@@ -134,12 +135,11 @@ fn main() -> tantivy::Result<()> {
 
     let source = cli.value_of("source").unwrap_or(source_glob);
     let glob_path = Path::new(&source);
-    let glob_str = glob_path.to_str().unwrap();
+    let glob_str = shellexpand::tilde(glob_path.to_str().unwrap());
 
     println!("Sourcing Markdown documents matching : {}", glob_str);
 
-    for entry in glob(glob_str).expect("Failed to read glob pattern") {
-        println!("Entry");
+    for entry in glob(&glob_str).expect("Failed to read glob pattern") {
         match entry {
             Ok(path) => {
                 if let Ok(doc) = index_file(&path) {

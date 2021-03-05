@@ -2,8 +2,8 @@ use chrono::DateTime;
 use clap::{App, Arg, SubCommand};
 use frontmatter;
 use glob::glob;
-use serde_json::json;
 use serde::{de, Deserialize, Deserializer, Serialize};
+use serde_json::json;
 use std::{
     collections::HashMap, ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path,
 };
@@ -91,14 +91,18 @@ fn main() -> tantivy::Result<()> {
         .subcommand(
             SubCommand::with_name("index")
                 .about("Load data from a source directory")
-                .arg(Arg::with_name("source")
-                .required(true)
-                .help("print debug information verbosely")),
+                .arg(
+                    Arg::with_name("source")
+                        .required(true)
+                        .help("print debug information verbosely"),
+                ),
         )
         .subcommand(
-            SubCommand::with_name("query")
-                .about("Query the index")
-                .arg(Arg::with_name("query").help("print debug information verbosely")),
+            SubCommand::with_name("query").about("Query the index").arg(
+                Arg::with_name("query")
+                    .required(true)
+                    .help("print debug information verbosely"),
+            ),
         )
         .get_matches();
 
@@ -214,7 +218,7 @@ fn main() -> tantivy::Result<()> {
 
         file_checksums.checksums = checksums;
         let toml_text = toml::to_string(&file_checksums).unwrap();
-        //println!("TOML Text {:?}", toml_text);
+        println!("TOML Text {:?}", toml_text);
         let checksums_file = index_path.join("checksums.toml");
         fs::write(checksums_file, toml_text).expect("Unable to write TOML file");
 
@@ -248,7 +252,6 @@ fn main() -> tantivy::Result<()> {
             //} else {
             //    println!("{}", out);
             //}
-
         }
     }
 

@@ -144,23 +144,24 @@ fn main() -> tantivy::Result<()> {
     for entry in glob(glob_str).expect("Failed to read glob pattern") {
         match entry {
             Ok(path) => {
-                let res = index_file(&path);
-                let doc = unwrap!(res, "Failed to process file {}", path.display());
-                let rfc3339 = DateTime::parse_from_rfc3339(&doc.date).unwrap();
-                let thingit = rfc3339.with_timezone(&chrono::Utc);
-                let thedate = Value::Date(thingit);
+                if let Ok(doc) = index_file(&path) {
+                    //let doc = unwrap!(res, "Failed to process file {}", path.display());
+                    let rfc3339 = DateTime::parse_from_rfc3339(&doc.date).unwrap();
+                    let thingit = rfc3339.with_timezone(&chrono::Utc);
+                    let thedate = Value::Date(thingit);
 
-                let f = path.to_str().unwrap();
-                index_writer.add_document(doc!(
-                    author => doc.author,
-                    body => doc.body,
-                    date => thedate,
-                    filename => doc.filename,
-                    full_path => f,
-                    tags => doc.tags.join(" "),
-                    title => doc.title,
-                ));
-                println!("✅ {}", f);
+                    let f = path.to_str().unwrap();
+                    index_writer.add_document(doc!(
+                        author => doc.author,
+                        body => doc.body,
+                        date => thedate,
+                        filename => doc.filename,
+                        full_path => f,
+                        tags => doc.tags.join(" "),
+                        title => doc.title,
+                    ));
+                    println!("✅ {}", f);
+                }
             }
 
             Err(e) => println!("{:?}", e),

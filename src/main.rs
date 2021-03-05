@@ -9,15 +9,9 @@ use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index, Ter
 use unwrap::unwrap;
 use yaml_rust::YamlEmitter;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Checksums {
-    checksums: HashMap<String, u32>,
-}
-
 // TODO
 // index filename with full path
 // emit only filename by default with option to emit JSON
-// keep hash per indexed file and update the index if the hash has changed
 // Pull in skim style dynamic prompting reloading
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -74,18 +68,18 @@ where
 fn main() -> tantivy::Result<()> {
     color_backtrace::install();
 
-    let default_index_dir = shellexpand::tilde("~/.local/share/tika/");
+    let default_config_file = shellexpand::tilde("~/.config/tika/tika.toml");
 
-    let matches = App::new("tika")
+    let cli = App::new("tika")
         .version("1.0")
         .author("Steve <steve@little-fluffy.cloud>")
         .about("Things I Know About: Zettlekasten-like Markdown+FrontMatter Indexer and query tool")
         .arg(
-            Arg::with_name("index_path")
-                .short("i")
-                .value_name("DIRECTORY")
-                .help("Set the directory to store Tantivy index data")
-                .default_value(&default_index_dir)
+            Arg::with_name("config")
+                .short("c")
+                .value_name("FILE")
+                .help(format!("Point to a config TOML file, defaults to `{}`", default_config_file).as_str())
+                .default_value(&default_config_file)
                 .takes_value(true),
         )
         .subcommand(
@@ -106,12 +100,9 @@ fn main() -> tantivy::Result<()> {
         )
         .get_matches();
 
-    let index_path = matches.value_of("index_path").unwrap();
-
-    let index_path = Path::new(&index_path);
-    fs::create_dir_all(index_path)?;
-
+    // Define and build the Index Schema
     let mut schema_builder = Schema::builder();
+
     let author = schema_builder.add_text_field("author", TEXT);
     let body = schema_builder.add_text_field("body", TEXT);
     let date = schema_builder.add_date_field("date", INDEXED | STORED);
@@ -119,37 +110,15 @@ fn main() -> tantivy::Result<()> {
     let full_path = schema_builder.add_text_field("full_path", TEXT | STORED);
     let tags = schema_builder.add_text_field("tags", TEXT | STORED);
     let title = schema_builder.add_text_field("title", TEXT | STORED);
-
     let schema = schema_builder.build();
 
-    let d = tantivy::directory::MmapDirectory::open(index_path).unwrap();
-    let index = Index::open_or_create(d, schema.clone()).unwrap();
+    let index = Index::create_in_ram(schema.clone());
+        let mut index_writer = index.writer(100_000_000).unwrap();
+
     let reader = index.reader()?;
 
-    if let Some(matches) = matches.subcommand_matches("index") {
-        let source = matches.value_of("source").unwrap();
-
-        // TODO load metadata
-        let checksums_file = index_path.join("checksums.toml");
-        let checksums_fh = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(checksums_file)?;
-        let mut buf_reader = io::BufReader::new(checksums_fh);
-        let mut contents = String::new();
-        buf_reader.read_to_string(&mut contents)?;
-
-        let mut file_checksums = match toml::from_str(&contents) {
-            Ok(f) => f,
-            Err(_) => Checksums {
-                checksums: HashMap::new(),
-            },
-        };
-        //println!("file_checksums {:?}", file_checksums);
-        let mut checksums = file_checksums.checksums;
-
-        let mut index_writer = index.writer(100_000_000).unwrap();
+    if let Some(cli) = cli.subcommand_matches("index") {
+        let source = cli.value_of("source").unwrap();
 
         // Clear out the index so we can reindex everything
         index_writer.delete_all_documents().unwrap();
@@ -171,57 +140,27 @@ fn main() -> tantivy::Result<()> {
                     let thedate = Value::Date(thingit);
 
                     let f = path.to_str().unwrap();
-                    let mut checksum: u32 = 0;
-                    if let Some(c) = checksums.get(f) {
-                        checksum = *c;
-                    };
-
-                    if checksum == doc.checksum {
-                        println!("💯 {}", f);
-                    } else {
-                        if checksum == 0 {
-                            // Brand new doc, first time we've indexed if
-                            println!("🆕 {}", f);
-                        } else {
-                            // We've seen this doc by name before, but the
-                            // checksum is different - delete and reindex the file
-                            //let term = Term::from_field_text(full_path, f);
-                            let term = Term::from_field_text(filename, "vkms_terraform_operating_notes.md");
-                            println!("term {:?} {}", term, term.text());
-                            let ret = index_writer.delete_term(term.clone());
-                            index_writer.commit().unwrap();
-                            reader.reload().unwrap();
-                            println!("✅ {} {}", ret, f);
-                        };
-                        index_writer.add_document(doc!(
-                            author => doc.author,
-                            body => doc.body,
-                            date => thedate,
-                            filename => doc.filename,
-                            full_path => f,
-                            tags => doc.tags.join(" "),
-                            title => doc.title,
-                        ));
-                        *checksums.entry(f.to_string()).or_insert(doc.checksum) = doc.checksum;
-                        //println!("✔ {}", f);
-                    }
+                    index_writer.add_document(doc!(
+                        author => doc.author,
+                        body => doc.body,
+                        date => thedate,
+                        filename => doc.filename,
+                        full_path => f,
+                        tags => doc.tags.join(" "),
+                        title => doc.title,
+                    ));
+                    //println!("✅ {} {}", ret, f);
                 }
 
                 Err(e) => println!("{:?}", e),
             }
         }
 
-        file_checksums.checksums = checksums;
-        let toml_text = toml::to_string(&file_checksums).unwrap();
-        //println!("TOML Text {:?}", toml_text);
-        let checksums_file = index_path.join("checksums.toml");
-        fs::write(checksums_file, toml_text).expect("Unable to write TOML file");
-
         index_writer.commit().unwrap();
     }
 
-    if let Some(matches) = matches.subcommand_matches("query") {
-        let query = matches.value_of("query").unwrap();
+    if let Some(cli) = cli.subcommand_matches("query") {
+        let query = cli.value_of("query").unwrap();
 
         let searcher = reader.searcher();
 

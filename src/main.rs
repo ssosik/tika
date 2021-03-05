@@ -40,6 +40,7 @@ struct Doc {
     title: String,
 }
 
+// Support Deserializing a string into a list of string of length 1
 fn string_or_list_string<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
 where
     D: Deserializer<'de>,
@@ -53,6 +54,7 @@ where
             formatter.write_str("string or list of strings")
         }
 
+        // Value is a single string: return a Vec containing that single string
         fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
         where
             E: de::Error,
@@ -152,8 +154,8 @@ fn main() -> tantivy::Result<()> {
         let mut index_writer = index.writer(100_000_000).unwrap();
 
         // Clear out the index so we can reindex everything
-        //index_writer.delete_all_documents().unwrap();
-        //index_writer.commit().unwrap();
+        index_writer.delete_all_documents().unwrap();
+        index_writer.commit().unwrap();
 
         let glob_path = Path::new(&source).join("*.md");
         let glob_str = glob_path.to_str().unwrap();
@@ -171,7 +173,6 @@ fn main() -> tantivy::Result<()> {
                     let thedate = Value::Date(thingit);
 
                     let f = path.to_str().unwrap();
-                    //let checksum: u32 = 0;
                     let mut checksum: u32 = 0;
                     if let Some(c) = checksums.get(f) {
                         checksum = *c;
@@ -179,8 +180,6 @@ fn main() -> tantivy::Result<()> {
 
                     if checksum == doc.checksum {
                         println!("💯 {}", f);
-                        //println!("❌ {}", f);
-                        //println!("Checksum matches, no need to process {}", f);
                     } else {
                         if checksum == 0 {
                             // Brand new doc, first time we've indexed if
@@ -188,9 +187,9 @@ fn main() -> tantivy::Result<()> {
                         } else {
                             // We've seen this doc by name before, but the
                             // checksum is different - delete and reindex the file
-                            let term = Term::from_field_text(full_path, f);
-                            //let term = Term::from_field_text(filename, "vkms_terraform_operating_notes.md");
-                            //println!("term {:?} {}", term, term.text());
+                            //let term = Term::from_field_text(full_path, f);
+                            let term = Term::from_field_text(filename, "vkms_terraform_operating_notes.md");
+                            println!("term {:?} {}", term, term.text());
                             let ret = index_writer.delete_term(term.clone());
                             index_writer.commit().unwrap();
                             reader.reload().unwrap();

@@ -120,8 +120,6 @@ fn main() -> tantivy::Result<()> {
     let index = Index::create_in_ram(schema.clone());
     let mut index_writer = index.writer(100_000_000).unwrap();
 
-    let reader = index.reader()?;
-
     let cfg_file = cli.value_of("config").unwrap();
     let cfg_fh = fs::OpenOptions::new()
         .read(true)
@@ -141,6 +139,7 @@ fn main() -> tantivy::Result<()> {
     println!("Sourcing Markdown documents matching : {}", glob_str);
 
     for entry in glob(glob_str).expect("Failed to read glob pattern") {
+        println!("Entry");
         match entry {
             Ok(path) => {
                 if let Ok(doc) = index_file(&path) {
@@ -159,6 +158,8 @@ fn main() -> tantivy::Result<()> {
                         title => doc.title,
                     ));
                     println!("✅ {}", f);
+                } else {
+                    println!("Failed to read path {}", path.display());
                 }
             }
 
@@ -168,8 +169,11 @@ fn main() -> tantivy::Result<()> {
 
     index_writer.commit().unwrap();
 
+    let reader = index.reader()?;
+
     if let Some(cli) = cli.subcommand_matches("query") {
         let query = cli.value_of("query").unwrap();
+        println!("Query {}", query);
 
         let searcher = reader.searcher();
 

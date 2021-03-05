@@ -1,3 +1,5 @@
+use std::io::{Error, ErrorKind};
+
 use chrono::DateTime;
 use clap::{App, Arg, SubCommand};
 use glob::glob;
@@ -6,6 +8,7 @@ use std::{
     collections::HashMap, ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path,
 };
 use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index, Term};
+use toml::Value as tomlVal;
 use unwrap::unwrap;
 use yaml_rust::YamlEmitter;
 
@@ -72,31 +75,34 @@ fn main() -> tantivy::Result<()> {
 
     let cli = App::new("tika")
         .version("1.0")
-        .author("Steve <steve@little-fluffy.cloud>")
+        .author("Steve <!-- <steve@little-fluffy.cloud> -->")
         .about("Things I Know About: Zettlekasten-like Markdown+FrontMatter Indexer and query tool")
         .arg(
             Arg::with_name("config")
                 .short("c")
                 .value_name("FILE")
-                .help(format!("Point to a config TOML file, defaults to `{}`", default_config_file).as_str())
+                .help(
+                    format!(
+                        "Point to a config TOML file, defaults to `{}`",
+                        default_config_file
+                    )
+                    .as_str(),
+                )
+                .default_value(&default_config_file)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("source")
+                .short("s")
+                .value_name("DIRECTORY")
+                .help("Glob path to markdown files to load")
                 .default_value(&default_config_file)
                 .takes_value(true),
         )
         .subcommand(
-            SubCommand::with_name("index")
-                .about("Load data from a source directory")
-                .arg(
-                    Arg::with_name("source")
-                        .required(true)
-                        .help("print debug information verbosely"),
-                ),
-        )
-        .subcommand(
-            SubCommand::with_name("query").about("Query the index").arg(
-                Arg::with_name("query")
-                    .required(true)
-                    .help("print debug information verbosely"),
-            ),
+            SubCommand::with_name("query")
+                .about("Query the index")
+                .arg(Arg::with_name("query").required(true).help("Query string")),
         )
         .get_matches();
 
@@ -113,51 +119,55 @@ fn main() -> tantivy::Result<()> {
     let schema = schema_builder.build();
 
     let index = Index::create_in_ram(schema.clone());
-        let mut index_writer = index.writer(100_000_000).unwrap();
+    let mut index_writer = index.writer(100_000_000).unwrap();
 
     let reader = index.reader()?;
 
-    if let Some(cli) = cli.subcommand_matches("index") {
-        let source = cli.value_of("source").unwrap();
+    let cfg_file = cli.value_of("config").unwrap();
+    let cfg_fh = fs::OpenOptions::new()
+        .read(true)
+        .write(false)
+        .create(false)
+        .open(cfg_file)?;
+    let mut buf_reader = io::BufReader::new(cfg_fh);
+    let mut contents = String::new();
+    buf_reader.read_to_string(&mut contents)?;
+    let toml_contents = contents.parse::<tomlVal>().unwrap();
+    let source_glob = toml_contents["source-glob"].as_str().unwrap();
 
-        // Clear out the index so we can reindex everything
-        index_writer.delete_all_documents().unwrap();
-        index_writer.commit().unwrap();
+    let source = cli.value_of("source").unwrap_or(source_glob);
+    let glob_path = Path::new(&source);
+    let glob_str = glob_path.to_str().unwrap();
 
-        let glob_path = Path::new(&source).join("*.md");
-        let glob_str = glob_path.to_str().unwrap();
+    println!("Sourcing Markdown documents matching : {}", glob_str);
 
-        println!("Directory: {}", glob_str);
+    for entry in glob(glob_str).expect("Failed to read glob pattern") {
+        match entry {
+            Ok(path) => {
+                let res = index_file(&path);
+                let doc = unwrap!(res, "Failed to process file {}", path.display());
+                let rfc3339 = DateTime::parse_from_rfc3339(&doc.date).unwrap();
+                let thingit = rfc3339.with_timezone(&chrono::Utc);
+                let thedate = Value::Date(thingit);
 
-        for entry in glob(glob_str).expect("Failed to read glob pattern") {
-            match entry {
-                Ok(path) => {
-                    //println!("Processing {:?}", path);
-                    let res = index_file(&path);
-                    let doc = unwrap!(res, "Failed to process file {}", path.display());
-                    let rfc3339 = DateTime::parse_from_rfc3339(&doc.date).unwrap();
-                    let thingit = rfc3339.with_timezone(&chrono::Utc);
-                    let thedate = Value::Date(thingit);
-
-                    let f = path.to_str().unwrap();
-                    index_writer.add_document(doc!(
-                        author => doc.author,
-                        body => doc.body,
-                        date => thedate,
-                        filename => doc.filename,
-                        full_path => f,
-                        tags => doc.tags.join(" "),
-                        title => doc.title,
-                    ));
-                    //println!("✅ {} {}", ret, f);
-                }
-
-                Err(e) => println!("{:?}", e),
+                let f = path.to_str().unwrap();
+                index_writer.add_document(doc!(
+                    author => doc.author,
+                    body => doc.body,
+                    date => thedate,
+                    filename => doc.filename,
+                    full_path => f,
+                    tags => doc.tags.join(" "),
+                    title => doc.title,
+                ));
+                println!("✅ {}", f);
             }
-        }
 
-        index_writer.commit().unwrap();
+            Err(e) => println!("{:?}", e),
+        }
     }
+
+    index_writer.commit().unwrap();
 
     if let Some(cli) = cli.subcommand_matches("query") {
         let query = cli.value_of("query").unwrap();
@@ -196,21 +206,24 @@ fn index_file(path: &std::path::PathBuf) -> Result<Doc, io::Error> {
     let s = fs::read_to_string(path.to_str().unwrap())?;
 
     let (yaml, content) = frontmatter::parse_and_find_content(&s).unwrap();
-    let yaml = yaml.unwrap();
+    match yaml {
+        Some(yaml) => {
+            let mut out_str = String::new();
+            {
+                let mut emitter = YamlEmitter::new(&mut out_str);
+                emitter.dump(&yaml).unwrap(); // dump the YAML object to a String
+            }
 
-    let mut out_str = String::new();
-    {
-        let mut emitter = YamlEmitter::new(&mut out_str);
-        emitter.dump(&yaml).unwrap(); // dump the YAML object to a String
+            let mut doc: Doc = serde_yaml::from_str(&out_str).unwrap();
+            if doc.filename == *"" {
+                doc.filename = String::from(path.file_name().unwrap().to_str().unwrap());
+            }
+
+            doc.body = content.to_string();
+            doc.checksum = adler::adler32_slice(s.as_bytes());
+
+            return Ok(doc);
+        }
+        None => return Err(Error::new(ErrorKind::Other, "oh no!")),
     }
-
-    let mut doc: Doc = serde_yaml::from_str(&out_str).unwrap();
-    if doc.filename == *"" {
-        doc.filename = String::from(path.file_name().unwrap().to_str().unwrap());
-    }
-
-    doc.body = content.to_string();
-    doc.checksum = adler::adler32_slice(s.as_bytes());
-
-    Ok(doc)
 }

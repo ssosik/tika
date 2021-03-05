@@ -62,9 +62,9 @@ where
 fn main() -> tantivy::Result<()> {
     color_backtrace::install();
 
-    let default_index_dir = shellexpand::tilde("~/.config/zkfm/");
+    let default_index_dir = shellexpand::tilde("~/.config/tika/");
 
-    let matches = App::new("zkfm")
+    let matches = App::new("tika")
         .version("1.0")
         .author("Steve <steve@little-fluffy.cloud>")
         .about("Zettlekasten-inspired Markdown+FrontMatter Indexer and query tool")

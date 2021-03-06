@@ -1,20 +1,16 @@
-use std::io::{Error, ErrorKind};
-extern crate shellexpand;
-extern crate skim;
-use skim::prelude::*;
-use std::io::Cursor;
-
 use chrono::DateTime;
 use clap::{App, Arg, SubCommand};
 use glob::glob;
 use serde::{de, Deserialize, Deserializer, Serialize};
+use skim::prelude::*;
+use std::io::Cursor;
+use std::io::{Error, ErrorKind};
 use std::{ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path};
 use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index};
 use toml::Value as tomlVal;
 use yaml_rust::YamlEmitter;
 
 // TODO
-// index filename with full path
 // emit only filename by default with option to emit JSON
 // Pull in skim style dynamic prompting reloading
 
@@ -26,8 +22,6 @@ struct Doc {
     full_path: OsString,
     #[serde(skip_deserializing)]
     body: String,
-    #[serde(skip_deserializing)]
-    checksum: u32,
     date: String,
     #[serde(default)]
     filename: String,
@@ -76,7 +70,7 @@ fn main() -> tantivy::Result<()> {
 
     let cli = App::new("tika")
         .version("1.0")
-        .author("Steve <!-- <steve@little-fluffy.cloud> -->")
+        .author("Steve <steve@little-fluffy.cloud>")
         .about("Things I Know About: Zettlekasten-like Markdown+FrontMatter Indexer and query tool")
         .arg(
             Arg::with_name("config")
@@ -171,13 +165,11 @@ fn main() -> tantivy::Result<()> {
 
     let reader = index.reader()?;
     let searcher = reader.searcher();
+    let query_parser = QueryParser::for_index(&index, vec![author, body, filename, tags, title]);
 
     if let Some(cli) = cli.subcommand_matches("query") {
         let query = cli.value_of("query").unwrap();
         println!("Query {}", query);
-
-        let query_parser =
-            QueryParser::for_index(&index, vec![author, body, filename, tags, title]);
 
         //let query = query_parser.parse_query("vim")?;
         //let query = query_parser.parse_query("tags:kubernetes")?;
@@ -195,7 +187,6 @@ fn main() -> tantivy::Result<()> {
     } else {
         // Use interactive fuzzy finder
 
-        // SKIM TEST
         let options = SkimOptionsBuilder::default()
             .height(Some("50%"))
             .multi(true)
@@ -203,10 +194,7 @@ fn main() -> tantivy::Result<()> {
             .unwrap();
         let item_reader = SkimItemReader::default();
 
-        //==================================================
-        // first run
-        let query_parser =
-            QueryParser::for_index(&index, vec![author, body, filename, tags, title]);
+        // Initial list of all items
         let query = query_parser.parse_query("*")?;
         let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
         let mut input = String::from("");
@@ -253,7 +241,6 @@ fn index_file(path: &std::path::PathBuf) -> Result<Doc, io::Error> {
             }
 
             doc.body = content.to_string();
-            doc.checksum = adler::adler32_slice(s.as_bytes());
 
             Ok(doc)
         }

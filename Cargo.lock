@@ -1434,7 +1434,6 @@ dependencies = [
 name = "tika"
 version = "0.1.0"
 dependencies = [
- "adler",
  "chrono",
  "clap",
  "color-backtrace",

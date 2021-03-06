@@ -7,7 +7,6 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-adler = "0.2.3"
 clap = "2.33.3"
 color-backtrace = { version = "0.4" }
 chrono = "0.4"

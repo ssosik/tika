@@ -3,12 +3,10 @@ use clap::{App, Arg, SubCommand};
 use glob::glob;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use skim::prelude::*;
-use skim::MatchEngineFactory;
-use std::io::Cursor;
 use std::io::{Error, ErrorKind};
 use std::{ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path};
 use tantivy::{
-    collector::TopDocs, doc, query::QueryParser, schema::*, Index, LeasedItem, Searcher,
+    collector::TopDocs, doc, query::QueryParser, schema::*, Index, 
 };
 use toml::Value as tomlVal;
 use yaml_rust::YamlEmitter;
@@ -195,7 +193,8 @@ fn main() -> tantivy::Result<()> {
 
         for (_score, doc_address) in top_docs {
             let retrieved_doc = searcher.doc(doc_address)?;
-            println!("{}", schema.to_json(&retrieved_doc));
+            //println!("{}", schema.to_json(&retrieved_doc));
+            println!("{:?}", retrieved_doc);
         }
     } else {
         // Use interactive fuzzy finder

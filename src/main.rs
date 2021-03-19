@@ -193,7 +193,7 @@ fn main() -> tantivy::Result<()> {
     } else {
         // Use interactive fuzzy finder
 
-        let engine_factory = TantivyEngineFactory::builder();
+        let engine_factory = TantivyEngineFactory::builder(searcher, index);
         let options = SkimOptionsBuilder::default()
             .height(Some("50%"))
             .multi(true)

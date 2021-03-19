@@ -1183,6 +1183,7 @@ dependencies = [
  "rayon",
  "regex",
  "shlex",
+ "tantivy",
  "time 0.2.25",
  "timer",
  "tuikit",

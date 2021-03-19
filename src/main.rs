@@ -193,9 +193,7 @@ fn main() -> tantivy::Result<()> {
     } else {
         // Use interactive fuzzy finder
 
-        //let engine_factory: Box<dyn MatchEngineFactory> = Box::new(RegexEngineFactory::builder());
-        let engine_factory = RegexEngineFactory::builder();
-        //let engine_factory: Box<MatchEngineFactory>  = Box::new(RegexEngineFactory::builder());
+        let engine_factory = TantivyEngineFactory::builder();
         let options = SkimOptionsBuilder::default()
             .height(Some("50%"))
             .multi(true)
@@ -223,77 +221,6 @@ fn main() -> tantivy::Result<()> {
         for item in selected_items.iter() {
             print!("{}{}", item.output(), "\n");
         }
-
-        ////////////////////////////////////////////////////////////////////////
-        // Try to use custom engine factory, not work
-        ////////////////////////////////////////////////////////////////////////
-        ////let engine = MatchEngineFactory.create_engine_with_case("foo");
-        ////let ef =TantivyEngineFactory::builder(searcher, query_parser);
-        //let ef: Box<dyn MatchEngineFactory> = Box::new(TantivyEngineFactory::builder(searcher, query_parser));
-        //let engine_factory = Some(Rc::new(ef));
-        ////let engine_factory = Some(Rc::new(AndOrEngineFactory::new(fuzzy_engine_factory)));
-        //let options = SkimOptionsBuilder::default()
-        //    .height(Some("50%"))
-        //    .multi(true)
-        //    .preview(Some("")) // preview should be specified to enable preview window
-        //    .engine_factory(engine_factory)
-        //    .build()
-        //    .unwrap();
-
-        //let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
-        //let _ = tx_item.send(Arc::new(MyItem {
-        //    inner: "color aaaa".to_string(),
-        //}));
-        //let _ = tx_item.send(Arc::new(MyItem {
-        //    inner: "bbbb".to_string(),
-        //}));
-        //let _ = tx_item.send(Arc::new(MyItem {
-        //    inner: "ccc".to_string(),
-        //}));
-        //drop(tx_item); // so that skim could know when to stop waiting for more items.
-
-        //let selected_items = Skim::run_with(&options, Some(rx_item))
-        //    .map(|out| out.selected_items)
-        //    .unwrap_or_else(|| Vec::new());
-
-        //for item in selected_items.iter() {
-        //    print!("{}{}", item.output(), "\n");
-        //}
-
-        ////////////////////////////////////////////////////////////////////////
-        // original working example of skim
-        ////////////////////////////////////////////////////////////////////////
-        //let options = SkimOptionsBuilder::default()
-        //    .height(Some("50%"))
-        //    .multi(true)
-        //    .build()
-        //    .unwrap();
-        //let item_reader = SkimItemReader::default();
-
-        //// Initial list of all items
-        //let query = query_parser.parse_query("*")?;
-        //let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
-        //let mut input = String::from("");
-        //for (_score, doc_address) in top_docs {
-        //    let data = searcher.doc(doc_address)?;
-        //    if let Some(field) = schema.get_field("filename") {
-        //        if let Some(val) = data.get_first(field) {
-        //            if let Some(name) = val.text() {
-        //                input.push_str(name);
-        //                input.push('\n');
-        //            }
-        //        }
-        //    }
-        //}
-
-        //let items = item_reader.of_bufread(Cursor::new(input));
-        //let selected_items = Skim::run_with(&options, Some(items))
-        //    .map(|out| out.selected_items)
-        //    .unwrap_or_else(Vec::new);
-
-        //for item in selected_items.iter() {
-        //    println!("{}", item.output());
-        //}
     }
 
     Ok(())

@@ -125,7 +125,10 @@ fn main() -> tantivy::Result<()> {
     let mut contents = String::new();
     buf_reader.read_to_string(&mut contents)?;
     let toml_contents = contents.parse::<tomlVal>().unwrap();
-    let source_glob = toml_contents["source-glob"].as_str().unwrap();
+
+    let source_glob = toml_contents.get("source-glob")
+        .expect("Failed to find 'source-glob' heading in toml config").as_str()
+        .expect("Error taking source-glob value as string");
 
     let source = cli.value_of("source").unwrap_or(source_glob);
     let glob_path = Path::new(&source);

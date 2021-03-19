@@ -620,6 +620,13 @@ dependencies = [
 [[package]]
 name = "fuzzy-matcher"
 version = "0.3.7"
+dependencies = [
+ "thread_local",
+]
+
+[[package]]
+name = "fuzzy-matcher"
+version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "54614a3312934d066701a80f20f15fa3b56d67ac7722b39eea5b4c9dd1d66c94"
 dependencies = [
@@ -1178,7 +1185,7 @@ dependencies = [
  "defer-drop",
  "derive_builder",
  "env_logger",
- "fuzzy-matcher",
+ "fuzzy-matcher 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static",
  "log",
  "nix 0.19.1",
@@ -1438,7 +1445,7 @@ dependencies = [
  "clap",
  "color-backtrace",
  "frontmatter",
- "fuzzy-matcher",
+ "fuzzy-matcher 0.3.7",
  "glob",
  "serde",
  "serde_json",

@@ -3,6 +3,7 @@ use clap::{App, Arg, SubCommand};
 use glob::glob;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use skim::prelude::*;
+use skim::MatchEngineFactory;
 use std::io::Cursor;
 use std::io::{Error, ErrorKind};
 use std::{ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path};
@@ -126,8 +127,10 @@ fn main() -> tantivy::Result<()> {
     buf_reader.read_to_string(&mut contents)?;
     let toml_contents = contents.parse::<tomlVal>().unwrap();
 
-    let source_glob = toml_contents.get("source-glob")
-        .expect("Failed to find 'source-glob' heading in toml config").as_str()
+    let source_glob = toml_contents
+        .get("source-glob")
+        .expect("Failed to find 'source-glob' heading in toml config")
+        .as_str()
         .expect("Error taking source-glob value as string");
 
     let source = cli.value_of("source").unwrap_or(source_glob);
@@ -190,40 +193,101 @@ fn main() -> tantivy::Result<()> {
     } else {
         // Use interactive fuzzy finder
 
+        ////////////////////////////////////////////////////////////////////////
+        // Try to use custom engine factory, not work
+        ////////////////////////////////////////////////////////////////////////
+        //let engine = MatchEngineFactory.create_engine_with_case("foo");
+        let fuzzy_engine_factory = ExactOrFuzzyEngineFactory::builder()
+            .fuzzy_algorithm(options.algorithm)
+            .exact_mode(true)
+            .build();
+        let engine_factory = Some(Rc::new(AndOrEngineFactory::new(fuzzy_engine_factory)));
         let options = SkimOptionsBuilder::default()
             .height(Some("50%"))
             .multi(true)
+            .preview(Some("")) // preview should be specified to enable preview window
+            .engine_factory(engine_factory)
             .build()
             .unwrap();
-        let item_reader = SkimItemReader::default();
 
-        // Initial list of all items
-        let query = query_parser.parse_query("*")?;
-        let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
-        let mut input = String::from("");
-        for (_score, doc_address) in top_docs {
-            let data = searcher.doc(doc_address)?;
-            if let Some(field) = schema.get_field("filename") {
-                if let Some(val) = data.get_first(field) {
-                    if let Some(name) = val.text() {
-                        input.push_str(name);
-                        input.push('\n');
-                    }
-                }
-            }
-        }
+        let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
+        let _ = tx_item.send(Arc::new(MyItem {
+            inner: "color aaaa".to_string(),
+        }));
+        let _ = tx_item.send(Arc::new(MyItem {
+            inner: "bbbb".to_string(),
+        }));
+        let _ = tx_item.send(Arc::new(MyItem {
+            inner: "ccc".to_string(),
+        }));
+        drop(tx_item); // so that skim could know when to stop waiting for more items.
 
-        let items = item_reader.of_bufread(Cursor::new(input));
-        let selected_items = Skim::run_with(&options, Some(items))
+        let selected_items = Skim::run_with(&options, Some(rx_item))
             .map(|out| out.selected_items)
-            .unwrap_or_else(Vec::new);
+            .unwrap_or_else(|| Vec::new());
 
         for item in selected_items.iter() {
-            println!("{}", item.output());
+            print!("{}{}", item.output(), "\n");
         }
+
+        ////////////////////////////////////////////////////////////////////////
+        // original working example of skim
+        ////////////////////////////////////////////////////////////////////////
+        //let options = SkimOptionsBuilder::default()
+        //    .height(Some("50%"))
+        //    .multi(true)
+        //    .build()
+        //    .unwrap();
+        //let item_reader = SkimItemReader::default();
+
+        //// Initial list of all items
+        //let query = query_parser.parse_query("*")?;
+        //let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
+        //let mut input = String::from("");
+        //for (_score, doc_address) in top_docs {
+        //    let data = searcher.doc(doc_address)?;
+        //    if let Some(field) = schema.get_field("filename") {
+        //        if let Some(val) = data.get_first(field) {
+        //            if let Some(name) = val.text() {
+        //                input.push_str(name);
+        //                input.push('\n');
+        //            }
+        //        }
+        //    }
+        //}
+
+        //let items = item_reader.of_bufread(Cursor::new(input));
+        //let selected_items = Skim::run_with(&options, Some(items))
+        //    .map(|out| out.selected_items)
+        //    .unwrap_or_else(Vec::new);
+
+        //for item in selected_items.iter() {
+        //    println!("{}", item.output());
+        //}
     }
 
     Ok(())
+}
+
+struct MyItem {
+    inner: String,
+}
+
+impl SkimItem for MyItem {
+    fn text(&self) -> Cow<str> {
+        Cow::Borrowed(&self.inner)
+    }
+
+    fn preview(&self, _context: PreviewContext) -> ItemPreview {
+        if self.inner.starts_with("color") {
+            ItemPreview::AnsiText(format!("\x1b[31mhello:\x1b[m\n{}", self.inner))
+        } else {
+            ItemPreview::Text(format!("hello:\n{}", self.inner))
+        }
+    }
+}
+
+pub struct TantivyEngineFactory {
 }
 
 fn index_file(path: &std::path::PathBuf) -> Result<Doc, io::Error> {

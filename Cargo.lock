@@ -620,13 +620,6 @@ dependencies = [
 [[package]]
 name = "fuzzy-matcher"
 version = "0.3.7"
-dependencies = [
- "thread_local",
-]
-
-[[package]]
-name = "fuzzy-matcher"
-version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "54614a3312934d066701a80f20f15fa3b56d67ac7722b39eea5b4c9dd1d66c94"
 dependencies = [
@@ -1173,8 +1166,6 @@ checksum = "7fdf1b9db47230893d76faad238fd6097fd6d6a9245cd7a4d90dbd639536bbd2"
 [[package]]
 name = "skim"
 version = "0.9.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b9d19f904221fab15163486d2ce116cb86e60296470bb4e956d6687f04ebbb4"
 dependencies = [
  "atty",
  "beef",
@@ -1185,7 +1176,7 @@ dependencies = [
  "defer-drop",
  "derive_builder",
  "env_logger",
- "fuzzy-matcher 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "fuzzy-matcher",
  "lazy_static",
  "log",
  "nix 0.19.1",
@@ -1445,7 +1436,7 @@ dependencies = [
  "clap",
  "color-backtrace",
  "frontmatter",
- "fuzzy-matcher 0.3.7",
+ "fuzzy-matcher",
  "glob",
  "serde",
  "serde_json",

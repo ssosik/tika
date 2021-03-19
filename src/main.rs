@@ -7,7 +7,7 @@ use skim::MatchEngineFactory;
 use std::io::Cursor;
 use std::io::{Error, ErrorKind};
 use std::{ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path};
-use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index};
+use tantivy::{collector::TopDocs, LeasedItem, Searcher, doc, query::QueryParser, schema::*, Index};
 use toml::Value as tomlVal;
 use yaml_rust::YamlEmitter;
 
@@ -193,20 +193,14 @@ fn main() -> tantivy::Result<()> {
     } else {
         // Use interactive fuzzy finder
 
-        ////////////////////////////////////////////////////////////////////////
-        // Try to use custom engine factory, not work
-        ////////////////////////////////////////////////////////////////////////
-        //let engine = MatchEngineFactory.create_engine_with_case("foo");
-        let fuzzy_engine_factory = ExactOrFuzzyEngineFactory::builder()
-            .fuzzy_algorithm(options.algorithm)
-            .exact_mode(true)
-            .build();
-        let engine_factory = Some(Rc::new(AndOrEngineFactory::new(fuzzy_engine_factory)));
+        //let engine_factory: Box<dyn MatchEngineFactory> = Box::new(RegexEngineFactory::builder());
+        let engine_factory = RegexEngineFactory::builder();
+        //let engine_factory: Box<MatchEngineFactory>  = Box::new(RegexEngineFactory::builder());
         let options = SkimOptionsBuilder::default()
             .height(Some("50%"))
             .multi(true)
             .preview(Some("")) // preview should be specified to enable preview window
-            .engine_factory(engine_factory)
+            .engine_factory(Some(Rc::new(engine_factory)))
             .build()
             .unwrap();
 
@@ -229,6 +223,42 @@ fn main() -> tantivy::Result<()> {
         for item in selected_items.iter() {
             print!("{}{}", item.output(), "\n");
         }
+
+        ////////////////////////////////////////////////////////////////////////
+        // Try to use custom engine factory, not work
+        ////////////////////////////////////////////////////////////////////////
+        ////let engine = MatchEngineFactory.create_engine_with_case("foo");
+        ////let ef =TantivyEngineFactory::builder(searcher, query_parser);
+        //let ef: Box<dyn MatchEngineFactory> = Box::new(TantivyEngineFactory::builder(searcher, query_parser));
+        //let engine_factory = Some(Rc::new(ef));
+        ////let engine_factory = Some(Rc::new(AndOrEngineFactory::new(fuzzy_engine_factory)));
+        //let options = SkimOptionsBuilder::default()
+        //    .height(Some("50%"))
+        //    .multi(true)
+        //    .preview(Some("")) // preview should be specified to enable preview window
+        //    .engine_factory(engine_factory)
+        //    .build()
+        //    .unwrap();
+
+        //let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
+        //let _ = tx_item.send(Arc::new(MyItem {
+        //    inner: "color aaaa".to_string(),
+        //}));
+        //let _ = tx_item.send(Arc::new(MyItem {
+        //    inner: "bbbb".to_string(),
+        //}));
+        //let _ = tx_item.send(Arc::new(MyItem {
+        //    inner: "ccc".to_string(),
+        //}));
+        //drop(tx_item); // so that skim could know when to stop waiting for more items.
+
+        //let selected_items = Skim::run_with(&options, Some(rx_item))
+        //    .map(|out| out.selected_items)
+        //    .unwrap_or_else(|| Vec::new());
+
+        //for item in selected_items.iter() {
+        //    print!("{}{}", item.output(), "\n");
+        //}
 
         ////////////////////////////////////////////////////////////////////////
         // original working example of skim
@@ -285,9 +315,6 @@ impl SkimItem for MyItem {
             ItemPreview::Text(format!("hello:\n{}", self.inner))
         }
     }
-}
-
-pub struct TantivyEngineFactory {
 }
 
 fn index_file(path: &std::path::PathBuf) -> Result<Doc, io::Error> {

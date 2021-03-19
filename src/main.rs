@@ -7,7 +7,9 @@ use skim::MatchEngineFactory;
 use std::io::Cursor;
 use std::io::{Error, ErrorKind};
 use std::{ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path};
-use tantivy::{collector::TopDocs, LeasedItem, Searcher, doc, query::QueryParser, schema::*, Index};
+use tantivy::{
+    collector::TopDocs, doc, query::QueryParser, schema::*, Index, LeasedItem, Searcher,
+};
 use toml::Value as tomlVal;
 use yaml_rust::YamlEmitter;
 
@@ -138,6 +140,7 @@ fn main() -> tantivy::Result<()> {
     let glob_str = shellexpand::tilde(glob_path.to_str().unwrap());
 
     println!("Sourcing Markdown documents matching : {}", glob_str);
+    let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
 
     for entry in glob(&glob_str).expect("Failed to read glob pattern") {
         match entry {
@@ -158,6 +161,10 @@ fn main() -> tantivy::Result<()> {
                         title => doc.title,
                     ));
                     println!("✅ {}", f);
+
+                    let _ = tx_item.send(Arc::new(MyItem {
+                        inner: f.to_string(),
+                    }));
                 } else {
                     println!("Failed to read path {}", path.display());
                 }
@@ -193,7 +200,7 @@ fn main() -> tantivy::Result<()> {
     } else {
         // Use interactive fuzzy finder
 
-        let engine_factory = TantivyEngineFactory::builder(searcher, index);
+        let engine_factory = TantivyEngineFactory::builder(index);
         let options = SkimOptionsBuilder::default()
             .height(Some("50%"))
             .multi(true)
@@ -202,16 +209,6 @@ fn main() -> tantivy::Result<()> {
             .build()
             .unwrap();
 
-        let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
-        let _ = tx_item.send(Arc::new(MyItem {
-            inner: "color aaaa".to_string(),
-        }));
-        let _ = tx_item.send(Arc::new(MyItem {
-            inner: "bbbb".to_string(),
-        }));
-        let _ = tx_item.send(Arc::new(MyItem {
-            inner: "ccc".to_string(),
-        }));
         drop(tx_item); // so that skim could know when to stop waiting for more items.
 
         let selected_items = Skim::run_with(&options, Some(rx_item))

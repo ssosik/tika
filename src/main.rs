@@ -125,7 +125,7 @@ fn main() -> tantivy::Result<()> {
     let filename = schema_builder.add_text_field("filename", TEXT | STORED);
     let full_path = schema_builder.add_text_field("full_path", TEXT | STORED);
 
-    let author = schema_builder.add_text_field("author", TEXT);
+    let author = schema_builder.add_text_field("author", TEXT | STORED);
     let date = schema_builder.add_date_field("date", INDEXED | STORED);
     let tags = schema_builder.add_text_field("tags", TEXT | STORED);
     let title = schema_builder.add_text_field("title", TEXT | STORED);
@@ -205,8 +205,10 @@ fn main() -> tantivy::Result<()> {
 
         for (_score, doc_address) in top_docs {
             let retrieved_doc = searcher.doc(doc_address)?;
-            //println!("{}", schema.to_json(&retrieved_doc));
-            println!("{:?}", retrieved_doc);
+            println!("{}", schema.to_json(&retrieved_doc));
+            //println!("{:?}", retrieved_doc);
+            //let serialized = serde_json::to_string(&retrieved_doc).unwrap();
+            //print!("{}{}", serialized, "\n");
         }
     } else {
         // Use interactive fuzzy finder

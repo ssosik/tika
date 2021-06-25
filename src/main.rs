@@ -143,10 +143,8 @@ fn main() -> tantivy::Result<()> {
         match entry {
             Ok(path) => {
                 if let Ok(doc) = index_file(&path) {
-                    let t:  DateTime<FixedOffset>;
-                    if let Ok(rfc3339) =
-                        DateTime::parse_from_rfc3339(&doc.date)
-                    {
+                    let t: DateTime<FixedOffset>;
+                    if let Ok(rfc3339) = DateTime::parse_from_rfc3339(&doc.date) {
                         t = rfc3339;
                     } else if let Ok(s) =
                         DateTime::parse_from_str(&doc.date, &String::from("%Y-%m-%dT%T%z"))
@@ -154,6 +152,7 @@ fn main() -> tantivy::Result<()> {
                         t = s;
                     } else {
                         println!("❌ Failed to convert path to str '{}'", path.display());
+                        continue;
                     }
                     if let Some(f) = path.to_str() {
                         index_writer.add_document(doc!(

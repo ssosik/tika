@@ -83,6 +83,20 @@ where
     deserializer.deserialize_any(StringOrVec(PhantomData))
 }
 
+impl From<TantivyDoc> for TikaDocument {
+    fn from(item: TantivyDoc) -> Self {
+        TikaDocument {
+            filename: String::from("foobar"),
+            author: item.retrieved_doc.get_first(item.author).unwrap().text().unwrap_or("").into(),
+            title: String::from("til"),
+            body: String::from("bod"),
+            date: String::from("how"),
+            tags: vec![String::from("tgs")],
+            full_path: OsString::from("meep"),
+        }
+    }
+}
+
 fn main() -> tantivy::Result<()> {
     color_backtrace::install();
 
@@ -134,23 +148,6 @@ fn main() -> tantivy::Result<()> {
     let body = schema_builder.add_text_field("body", TEXT);
 
     let schema = schema_builder.build();
-
-    impl From<Document> for TikaDocument {
-        fn from(item: Document) -> Self {
-            let mut schema_builder = Schema::builder();
-            let author = schema_builder.add_text_field("author", TEXT | STORED);
-            let title = schema_builder.add_text_field("title", TEXT | STORED);
-            TikaDocument {
-                filename: String::from("foobar"),
-                author: item.get_first(author).unwrap().text().unwrap_or("").into(),
-                title: item.get_first(title).unwrap().text().unwrap_or("").into(),
-                body: String::from("bod"),
-                date: String::from("how"),
-                tags: vec![String::from("tgs")],
-                full_path: OsString::from("meep"),
-            }
-        }
-    }
 
     let index = Index::create_in_ram(schema.clone());
     let mut index_writer = index.writer(100_000_000).unwrap();
@@ -227,8 +224,10 @@ fn main() -> tantivy::Result<()> {
             if let Some(s) = retrieved_doc.get_first(author) {
                 println!("{:?}", s.text().unwrap_or(""));
             }
-            let it: TikaDocument = retrieved_doc.into();
-            println!("{:?}", it);
+            let ttd = TantivyDoc  { retrieved_doc, author };
+            let td: TikaDocument = ttd.into();
+            let it = serde_json::to_string(&td).unwrap();
+            println!("{}", it);
             //println!("{:?}", retrieved_doc);
             //let serialized = serde_json::to_string(&retrieved_doc).unwrap();
             //print!("{}{}", serialized, "\n");
@@ -285,6 +284,11 @@ fn glob_files(cli: &ArgMatches) -> Result<Paths, Box<dyn std::error::Error>> {
     println!("Sourcing Markdown documents matching : {}", glob_str);
 
     return Ok(glob(&glob_str)?);
+}
+
+struct TantivyDoc{
+    retrieved_doc: Document,
+    author: Field,
 }
 
 struct MyItem {

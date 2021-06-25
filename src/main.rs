@@ -1,6 +1,6 @@
-use chrono::DateTime;
+use chrono::{DateTime, FixedOffset};
 use clap::{App, Arg, ArgMatches, SubCommand};
-use glob::{Paths, glob};
+use glob::{glob, Paths};
 use serde::{de, Deserialize, Deserializer, Serialize};
 use skim::prelude::*;
 use std::io::{Error, ErrorKind};
@@ -38,7 +38,8 @@ struct Document {
     /// FrontMatter-derived metadata about the document
     #[serde(default)]
     author: String,
-    date: String, /// RFC 3339 based timestamp
+    date: String,
+    /// RFC 3339 based timestamp
     #[serde(deserialize_with = "string_or_list_string")]
     tags: Vec<String>,
     title: String,
@@ -142,29 +143,45 @@ fn main() -> tantivy::Result<()> {
         match entry {
             Ok(path) => {
                 if let Ok(doc) = index_file(&path) {
-                    let rfc3339 = DateTime::parse_from_rfc3339(&doc.date).unwrap();
+                    let t:  DateTime<FixedOffset>;
+                    if let Ok(rfc3339) =
+                        DateTime::parse_from_rfc3339(&doc.date)
+                    {
+                        t = rfc3339;
+                    } else if let Ok(s) =
+                        DateTime::parse_from_str(&doc.date, &String::from("%Y-%m-%dT%T%z"))
+                    {
+                        t = s;
+                    } else {
+                        println!("❌ Failed to convert path to str '{}'", path.display());
+                    }
+                    if let Some(f) = path.to_str() {
+                        index_writer.add_document(doc!(
+                            author => doc.author,
+                            body => doc.body,
+                            date => Value::Date(t.with_timezone(&chrono::Utc)),
+                            filename => doc.filename,
+                            full_path => f,
+                            tags => doc.tags.join(" "),
+                            title => doc.title,
+                        ));
+                        println!("✅ {}", f);
 
-                    let f = path.to_str().unwrap();
-                    index_writer.add_document(doc!(
-                        author => doc.author,
-                        body => doc.body,
-                        date => Value::Date(rfc3339.with_timezone(&chrono::Utc)),
-                        filename => doc.filename,
-                        full_path => f,
-                        tags => doc.tags.join(" "),
-                        title => doc.title,
-                    ));
-                    println!("✅ {}", f);
-
-                    let _ = tx_item.send(Arc::new(MyItem {
-                        inner: f.to_string(),
-                    }));
+                        let _ = tx_item.send(Arc::new(MyItem {
+                            inner: f.to_string(),
+                        }));
+                    } else {
+                        println!(
+                            "❌ Failed to parse time '{}' from {}",
+                            doc.date, doc.filename
+                        );
+                    }
                 } else {
-                    println!("Failed to read path {}", path.display());
+                    println!("❌ Failed to load file {}", path.display());
                 }
             }
 
-            Err(e) => println!("{:?}", e),
+            Err(e) => println!("❌ {:?}", e),
         }
     }
 
@@ -243,7 +260,7 @@ fn glob_files(cli: &ArgMatches) -> Result<Paths, Box<dyn std::error::Error>> {
 
     println!("Sourcing Markdown documents matching : {}", glob_str);
 
-    return Ok(glob(&glob_str)?)
+    return Ok(glob(&glob_str)?);
 }
 
 struct MyItem {

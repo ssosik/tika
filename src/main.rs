@@ -3,6 +3,7 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use glob::{glob, Paths};
 use serde::{de, Deserialize, Deserializer, Serialize};
 use skim::prelude::*;
+use std::convert::From;
 use std::io::{Error, ErrorKind};
 use std::{ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path};
 use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index};
@@ -28,7 +29,7 @@ use yaml_rust::YamlEmitter;
 
 /// Representation for a given Markdown + FrontMatter file
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct Document {
+struct TikaDocument {
     /// Inherent metadata about the document
     #[serde(default)]
     filename: String,
@@ -134,6 +135,23 @@ fn main() -> tantivy::Result<()> {
 
     let schema = schema_builder.build();
 
+    impl From<Document> for TikaDocument {
+        fn from(item: Document) -> Self {
+            let mut schema_builder = Schema::builder();
+            let author = schema_builder.add_text_field("author", TEXT | STORED);
+            let title = schema_builder.add_text_field("title", TEXT | STORED);
+            TikaDocument {
+                filename: String::from("foobar"),
+                author: item.get_first(author).unwrap().text().unwrap_or("").into(),
+                title: item.get_first(title).unwrap().text().unwrap_or("").into(),
+                body: String::from("bod"),
+                date: String::from("how"),
+                tags: vec![String::from("tgs")],
+                full_path: OsString::from("meep"),
+            }
+        }
+    }
+
     let index = Index::create_in_ram(schema.clone());
     let mut index_writer = index.writer(100_000_000).unwrap();
 
@@ -206,6 +224,11 @@ fn main() -> tantivy::Result<()> {
         for (_score, doc_address) in top_docs {
             let retrieved_doc = searcher.doc(doc_address)?;
             println!("{}", schema.to_json(&retrieved_doc));
+            if let Some(s) = retrieved_doc.get_first(author) {
+                println!("{:?}", s.text().unwrap_or(""));
+            }
+            let it: TikaDocument = retrieved_doc.into();
+            println!("{:?}", it);
             //println!("{:?}", retrieved_doc);
             //let serialized = serde_json::to_string(&retrieved_doc).unwrap();
             //print!("{}{}", serialized, "\n");
@@ -282,7 +305,7 @@ impl SkimItem for MyItem {
     }
 }
 
-fn index_file(path: &std::path::PathBuf) -> Result<Document, io::Error> {
+fn index_file(path: &std::path::PathBuf) -> Result<TikaDocument, io::Error> {
     let s = fs::read_to_string(path.to_str().unwrap())?;
 
     let (yaml, content) = frontmatter::parse_and_find_content(&s).unwrap();
@@ -294,7 +317,7 @@ fn index_file(path: &std::path::PathBuf) -> Result<Document, io::Error> {
                 emitter.dump(&yaml).unwrap(); // dump the YAML object to a String
             }
 
-            let mut doc: Document = serde_yaml::from_str(&out_str).unwrap();
+            let mut doc: TikaDocument = serde_yaml::from_str(&out_str).unwrap();
             if doc.filename == *"" {
                 doc.filename = String::from(path.file_name().unwrap().to_str().unwrap());
             }

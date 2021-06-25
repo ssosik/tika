@@ -5,33 +5,50 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 use skim::prelude::*;
 use std::io::{Error, ErrorKind};
 use std::{ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path};
-use tantivy::{
-    collector::TopDocs, doc, query::QueryParser, schema::*, Index, 
-};
+use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index};
 use toml::Value as tomlVal;
 use yaml_rust::YamlEmitter;
+
+/// Example FrontMatter + Markdown doc to index:
+///
+/// ---
+/// author: Steve Sosik
+/// date: 2021-06-22T12:48:16-0400
+/// tags:
+/// - tika
+/// title: This is an example note
+/// ---
+///
+/// Some note here formatted with Markdown syntax
+///
 
 // TODO
 // emit only filename by default with option to emit JSON
 // Pull in skim style dynamic prompting reloading
 
+/// Representation for a given Markdown + FrontMatter file
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct Doc {
-    #[serde(default)]
-    author: String,
+struct Document {
+    /// Full path to the file on disk
     #[serde(skip_deserializing)]
     full_path: OsString,
-    #[serde(skip_deserializing)]
-    body: String,
+
+    /// FrontMatter-derived metadata about the document
+    #[serde(default)]
+    author: String,
     date: String,
     #[serde(default)]
     filename: String,
     #[serde(deserialize_with = "string_or_list_string")]
     tags: Vec<String>,
     title: String,
+
+    /// The Markdown-formatted body of the document
+    #[serde(skip_deserializing)]
+    body: String,
 }
 
-// Support Deserializing a string into a list of string of length 1
+/// Support Deserializing a string into a list of string of length 1
 fn string_or_list_string<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
 where
     D: Deserializer<'de>,
@@ -199,7 +216,8 @@ fn main() -> tantivy::Result<()> {
     } else {
         // Use interactive fuzzy finder
 
-        let engine_factory = TantivyEngineFactory::builder(index, vec![author, body, filename, tags, title]);
+        let engine_factory =
+            TantivyEngineFactory::builder(index, vec![author, body, filename, tags, title]);
         let options = SkimOptionsBuilder::default()
             .height(Some("50%"))
             .multi(true)
@@ -240,7 +258,7 @@ impl SkimItem for MyItem {
     }
 }
 
-fn index_file(path: &std::path::PathBuf) -> Result<Doc, io::Error> {
+fn index_file(path: &std::path::PathBuf) -> Result<Document, io::Error> {
     let s = fs::read_to_string(path.to_str().unwrap())?;
 
     let (yaml, content) = frontmatter::parse_and_find_content(&s).unwrap();
@@ -252,7 +270,7 @@ fn index_file(path: &std::path::PathBuf) -> Result<Doc, io::Error> {
                 emitter.dump(&yaml).unwrap(); // dump the YAML object to a String
             }
 
-            let mut doc: Doc = serde_yaml::from_str(&out_str).unwrap();
+            let mut doc: Document = serde_yaml::from_str(&out_str).unwrap();
             if doc.filename == *"" {
                 doc.filename = String::from(path.file_name().unwrap().to_str().unwrap());
             }

@@ -1,6 +1,6 @@
 use chrono::DateTime;
-use clap::{App, Arg, SubCommand};
-use glob::glob;
+use clap::{App, Arg, ArgMatches, SubCommand};
+use glob::{Paths, glob};
 use serde::{de, Deserialize, Deserializer, Serialize};
 use skim::prelude::*;
 use std::io::{Error, ErrorKind};
@@ -29,16 +29,16 @@ use yaml_rust::YamlEmitter;
 /// Representation for a given Markdown + FrontMatter file
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Document {
-    /// Full path to the file on disk
+    /// Inherent metadata about the document
+    #[serde(default)]
+    filename: String,
     #[serde(skip_deserializing)]
     full_path: OsString,
 
     /// FrontMatter-derived metadata about the document
     #[serde(default)]
     author: String,
-    date: String,
-    #[serde(default)]
-    filename: String,
+    date: String, /// RFC 3339 based timestamp
     #[serde(deserialize_with = "string_or_list_string")]
     tags: Vec<String>,
     title: String,
@@ -121,55 +121,34 @@ fn main() -> tantivy::Result<()> {
     // Define and build the Index Schema
     let mut schema_builder = Schema::builder();
 
-    let author = schema_builder.add_text_field("author", TEXT);
-    let body = schema_builder.add_text_field("body", TEXT);
-    let date = schema_builder.add_date_field("date", INDEXED | STORED);
     let filename = schema_builder.add_text_field("filename", TEXT | STORED);
     let full_path = schema_builder.add_text_field("full_path", TEXT | STORED);
+
+    let author = schema_builder.add_text_field("author", TEXT);
+    let date = schema_builder.add_date_field("date", INDEXED | STORED);
     let tags = schema_builder.add_text_field("tags", TEXT | STORED);
     let title = schema_builder.add_text_field("title", TEXT | STORED);
+
+    let body = schema_builder.add_text_field("body", TEXT);
+
     let schema = schema_builder.build();
 
     let index = Index::create_in_ram(schema.clone());
     let mut index_writer = index.writer(100_000_000).unwrap();
 
-    let cfg_file = cli.value_of("config").unwrap();
-    let cfg_fh = fs::OpenOptions::new()
-        .read(true)
-        .write(false)
-        .create(false)
-        .open(cfg_file)?;
-    let mut buf_reader = io::BufReader::new(cfg_fh);
-    let mut contents = String::new();
-    buf_reader.read_to_string(&mut contents)?;
-    let toml_contents = contents.parse::<tomlVal>().unwrap();
-
-    let source_glob = toml_contents
-        .get("source-glob")
-        .expect("Failed to find 'source-glob' heading in toml config")
-        .as_str()
-        .expect("Error taking source-glob value as string");
-
-    let source = cli.value_of("source").unwrap_or(source_glob);
-    let glob_path = Path::new(&source);
-    let glob_str = shellexpand::tilde(glob_path.to_str().unwrap());
-
-    println!("Sourcing Markdown documents matching : {}", glob_str);
     let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
 
-    for entry in glob(&glob_str).expect("Failed to read glob pattern") {
+    for entry in glob_files(&cli).expect("Failed to read glob pattern") {
         match entry {
             Ok(path) => {
                 if let Ok(doc) = index_file(&path) {
                     let rfc3339 = DateTime::parse_from_rfc3339(&doc.date).unwrap();
-                    let thingit = rfc3339.with_timezone(&chrono::Utc);
-                    let thedate = Value::Date(thingit);
 
                     let f = path.to_str().unwrap();
                     index_writer.add_document(doc!(
                         author => doc.author,
                         body => doc.body,
-                        date => thedate,
+                        date => Value::Date(rfc3339.with_timezone(&chrono::Utc)),
                         filename => doc.filename,
                         full_path => f,
                         tags => doc.tags.join(" "),
@@ -238,6 +217,33 @@ fn main() -> tantivy::Result<()> {
     }
 
     Ok(())
+}
+
+fn glob_files(cli: &ArgMatches) -> Result<Paths, Box<dyn std::error::Error>> {
+    let cfg_file = cli.value_of("config").unwrap();
+    let cfg_fh = fs::OpenOptions::new()
+        .read(true)
+        .write(false)
+        .create(false)
+        .open(cfg_file)?;
+    let mut buf_reader = io::BufReader::new(cfg_fh);
+    let mut contents = String::new();
+    buf_reader.read_to_string(&mut contents)?;
+    let toml_contents = contents.parse::<tomlVal>().unwrap();
+
+    let source_glob = toml_contents
+        .get("source-glob")
+        .expect("Failed to find 'source-glob' heading in toml config")
+        .as_str()
+        .expect("Error taking source-glob value as string");
+
+    let source = cli.value_of("source").unwrap_or(source_glob);
+    let glob_path = Path::new(&source);
+    let glob_str = shellexpand::tilde(glob_path.to_str().unwrap());
+
+    println!("Sourcing Markdown documents matching : {}", glob_str);
+
+    return Ok(glob(&glob_str)?)
 }
 
 struct MyItem {

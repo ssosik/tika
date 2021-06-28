@@ -1098,6 +1098,7 @@ dependencies = [
  "termion",
  "toml",
  "tui",
+ "unicode-width",
  "unwrap",
  "yaml-rust",
 ]

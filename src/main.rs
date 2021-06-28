@@ -5,6 +5,7 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 use skim::prelude::*;
 use std::convert::From;
 use std::io::{Error, ErrorKind};
+use std::str;
 use std::{ffi::OsString, fmt, fs, io, io::Read, marker::PhantomData, path::Path};
 use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index};
 use toml::Value as tomlVal;
@@ -86,13 +87,37 @@ where
 impl From<TantivyDoc> for TikaDocument {
     fn from(item: TantivyDoc) -> Self {
         TikaDocument {
-            filename: String::from("foobar"),
-            author: item.retrieved_doc.get_first(item.author).unwrap().text().unwrap_or("").into(),
-            title: String::from("til"),
-            body: String::from("bod"),
-            date: String::from("how"),
-            tags: vec![String::from("tgs")],
-            full_path: OsString::from("meep"),
+            filename: item
+                .retrieved_doc
+                .get_first(item.filename)
+                .unwrap()
+                .text()
+                .unwrap_or("")
+                .into(),
+            author: item
+                .retrieved_doc
+                .get_first(item.author)
+                .unwrap()
+                .text()
+                .unwrap_or("")
+                .into(),
+            title: item
+                .retrieved_doc
+                .get_first(item.title)
+                .unwrap()
+                .text()
+                .unwrap_or("")
+                .into(),
+            body: String::from(""),
+            date: item
+                .retrieved_doc
+                .get_first(item.date)
+                .unwrap()
+                .text()
+                .unwrap_or("")
+                .into(),
+            tags: vec![String::from("foo")],
+            full_path: OsString::from(""),
         }
     }
 }
@@ -220,17 +245,18 @@ fn main() -> tantivy::Result<()> {
 
         for (_score, doc_address) in top_docs {
             let retrieved_doc = searcher.doc(doc_address)?;
-            println!("{}", schema.to_json(&retrieved_doc));
-            if let Some(s) = retrieved_doc.get_first(author) {
-                println!("{:?}", s.text().unwrap_or(""));
+            let td: TikaDocument = TantivyDoc {
+                retrieved_doc,
+                author,
+                date,
+                filename,
+                full_path,
+                tags,
+                title,
             }
-            let ttd = TantivyDoc  { retrieved_doc, author };
-            let td: TikaDocument = ttd.into();
+            .into();
             let it = serde_json::to_string(&td).unwrap();
             println!("{}", it);
-            //println!("{:?}", retrieved_doc);
-            //let serialized = serde_json::to_string(&retrieved_doc).unwrap();
-            //print!("{}{}", serialized, "\n");
         }
     } else {
         // Use interactive fuzzy finder
@@ -286,9 +312,14 @@ fn glob_files(cli: &ArgMatches) -> Result<Paths, Box<dyn std::error::Error>> {
     return Ok(glob(&glob_str)?);
 }
 
-struct TantivyDoc{
+struct TantivyDoc {
     retrieved_doc: Document,
     author: Field,
+    date: Field,
+    filename: Field,
+    full_path: Field,
+    tags: Field,
+    title: Field,
 }
 
 struct MyItem {

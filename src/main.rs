@@ -29,15 +29,15 @@ use unicode_width::UnicodeWidthStr;
 struct QueryApp {
     /// Current value of the input box
     input: String,
-    /// History of recorded messages
-    messages: Vec<String>,
+    /// Query Matches
+    matches: Vec<String>,
 }
 
 impl Default for QueryApp {
     fn default() -> QueryApp {
         QueryApp {
             input: String::new(),
-            messages: Vec::new(),
+            matches: Vec::new(),
         }
     }
 }
@@ -215,7 +215,7 @@ fn main() -> Result<()> {
                     {
                         t = s;
                     } else {
-                        println!("❌ Failed to convert path to str '{}'", path.display());
+                        eprintln!("❌ Failed to convert path to str '{}'", path.display());
                         continue;
                     }
                     if let Some(f) = path.to_str() {
@@ -230,17 +230,17 @@ fn main() -> Result<()> {
                         ));
                         println!("✅ {}", f);
                     } else {
-                        println!(
+                        eprintln!(
                             "❌ Failed to parse time '{}' from {}",
                             doc.date, doc.filename
                         );
                     }
                 } else {
-                    println!("❌ Failed to load file {}", path.display());
+                    eprintln!("❌ Failed to load file {}", path.display());
                 }
             }
 
-            Err(e) => println!("❌ {:?}", e),
+            Err(e) => eprintln!("❌ {:?}", e),
         }
     }
 
@@ -303,8 +303,9 @@ fn main() -> Result<()> {
                     .constraints([Constraint::Min(1), Constraint::Length(3)].as_ref())
                     .split(f.size());
 
-                let messages: Vec<ListItem> = app
-                    .messages
+                // Output area where match titles are displayed
+                let matches: Vec<ListItem> = app
+                    .matches
                     .iter()
                     .enumerate()
                     .map(|(i, m)| {
@@ -312,9 +313,10 @@ fn main() -> Result<()> {
                         ListItem::new(content)
                     })
                     .collect();
-                let messages = List::new(messages).block(Block::default().borders(Borders::ALL));
-                f.render_widget(messages, chunks[0]);
+                let matches = List::new(matches).block(Block::default().borders(Borders::ALL));
+                f.render_widget(matches, chunks[0]);
 
+                // Input area where queries are entered
                 let input = Paragraph::new(app.input.as_ref())
                     .style(Style::default().fg(Color::Yellow))
                     .block(Block::default().borders(Borders::ALL));
@@ -346,10 +348,10 @@ fn main() -> Result<()> {
                 let query = query_parser.parse_query(&app.input)?;
                 let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
 
-                app.messages = Vec::new();
+                app.matches = Vec::new();
                 for (_score, doc_address) in top_docs {
                     let retrieved_doc = searcher.doc(doc_address)?;
-                    app.messages.push(
+                    app.matches.push(
                         retrieved_doc
                             .get_first(title)
                             .unwrap()

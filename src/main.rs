@@ -2,7 +2,6 @@ use chrono::{DateTime, FixedOffset};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use glob::{glob, Paths};
 use serde::{de, Deserialize, Deserializer, Serialize};
-use skim::prelude::*;
 use std::convert::From;
 use std::io::{Error, ErrorKind};
 use std::str;
@@ -23,10 +22,6 @@ use yaml_rust::YamlEmitter;
 ///
 /// Some note here formatted with Markdown syntax
 ///
-
-// TODO
-// emit only filename by default with option to emit JSON
-// Pull in skim style dynamic prompting reloading
 
 /// Representation for a given Markdown + FrontMatter file
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -177,8 +172,6 @@ fn main() -> tantivy::Result<()> {
     let index = Index::create_in_ram(schema.clone());
     let mut index_writer = index.writer(100_000_000).unwrap();
 
-    let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
-
     for entry in glob_files(&cli).expect("Failed to read glob pattern") {
         match entry {
             Ok(path) => {
@@ -206,9 +199,6 @@ fn main() -> tantivy::Result<()> {
                         ));
                         println!("✅ {}", f);
 
-                        let _ = tx_item.send(Arc::new(MyItem {
-                            inner: f.to_string(),
-                        }));
                     } else {
                         println!(
                             "❌ Failed to parse time '{}' from {}",
@@ -261,25 +251,6 @@ fn main() -> tantivy::Result<()> {
     } else {
         // Use interactive fuzzy finder
 
-        let engine_factory =
-            TantivyEngineFactory::builder(index, vec![author, body, filename, tags, title]);
-        let options = SkimOptionsBuilder::default()
-            .height(Some("50%"))
-            .multi(true)
-            .preview(Some("")) // preview should be specified to enable preview window
-            .engine_factory(Some(Rc::new(engine_factory)))
-            .build()
-            .unwrap();
-
-        drop(tx_item); // so that skim could know when to stop waiting for more items.
-
-        let selected_items = Skim::run_with(&options, Some(rx_item))
-            .map(|out| out.selected_items)
-            .unwrap_or_else(|| Vec::new());
-
-        for item in selected_items.iter() {
-            print!("{}{}", item.output(), "\n");
-        }
     }
 
     Ok(())
@@ -320,24 +291,6 @@ struct TantivyDoc {
     full_path: Field,
     tags: Field,
     title: Field,
-}
-
-struct MyItem {
-    inner: String,
-}
-
-impl SkimItem for MyItem {
-    fn text(&self) -> Cow<str> {
-        Cow::Borrowed(&self.inner)
-    }
-
-    fn preview(&self, _context: PreviewContext) -> ItemPreview {
-        if self.inner.starts_with("color") {
-            ItemPreview::AnsiText(format!("\x1b[31mhello:\x1b[m\n{}", self.inner))
-        } else {
-            ItemPreview::Text(format!("hello:\n{}", self.inner))
-        }
-    }
 }
 
 fn index_file(path: &std::path::PathBuf) -> Result<TikaDocument, io::Error> {

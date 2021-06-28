@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::{DateTime, FixedOffset};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use glob::{glob, Paths};
@@ -18,8 +18,8 @@ use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::Altern
 use tui::{
     backend::TermionBackend,
     layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::{Span, Spans, Text},
+    style::{Color, Style},
+    text::{Span, Spans},
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Terminal,
 };
@@ -178,11 +178,11 @@ fn main() -> Result<()> {
                 .help("Glob path to markdown files to load")
                 .takes_value(true),
         )
-        //.subcommand(
-        //    SubCommand::with_name("query")
-        //        .about("Query the index")
-        //        .arg(Arg::with_name("query").required(true).help("Query string")),
-        //)
+        .subcommand(
+            SubCommand::with_name("query")
+                .about("Query the index")
+                .arg(Arg::with_name("query").required(true).help("Query string")),
+        )
         .get_matches();
 
     // Define and build the Index Schema
@@ -250,113 +250,132 @@ fn main() -> Result<()> {
     let searcher = reader.searcher();
     let query_parser = QueryParser::for_index(&index, vec![author, body, filename, tags, title]);
 
-    //if let Some(cli) = cli.subcommand_matches("query") {
-    //    let query = cli.value_of("query").unwrap();
-    //    println!("Query {}", query);
+    if let Some(cli) = cli.subcommand_matches("query") {
+        let query = cli.value_of("query").unwrap();
+        println!("Query {}", query);
 
-    //    //let query = query_parser.parse_query("vim")?;
-    //    //let query = query_parser.parse_query("tags:kubernetes")?;
-    //    //let query = query_parser.parse_query("date:2020-07-24T13:03:50-04:00")?;
-    //    //let query = query_parser.parse_query("* AND date:\"2019-04-01T14:02:03Z\"")?;
-    //    //let query = query_parser.parse_query("* AND NOT date:\"2019-04-01T14:02:03Z\"")?;
-    //    let query = query_parser.parse_query(&query)?;
+        //let query = query_parser.parse_query("vim")?;
+        //let query = query_parser.parse_query("tags:kubernetes")?;
+        //let query = query_parser.parse_query("date:2020-07-24T13:03:50-04:00")?;
+        //let query = query_parser.parse_query("* AND date:\"2019-04-01T14:02:03Z\"")?;
+        //let query = query_parser.parse_query("* AND NOT date:\"2019-04-01T14:02:03Z\"")?;
+        let query = query_parser.parse_query(&query)?;
 
-    //    let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
 
-    //    for (_score, doc_address) in top_docs {
-    //        let retrieved_doc = searcher.doc(doc_address)?;
-    //        let td: TikaDocument = TantivyDoc {
-    //            retrieved_doc,
-    //            author,
-    //            date,
-    //            filename,
-    //            full_path,
-    //            tags,
-    //            title,
-    //        }
-    //        .into();
-    //        let it = serde_json::to_string(&td).unwrap();
-    //        println!("{}", it);
-    //    }
-    //} else {
-    //    // Use interactive fuzzy finder
-    //}
+        for (_score, doc_address) in top_docs {
+            let retrieved_doc = searcher.doc(doc_address)?;
+            let td: TikaDocument = TantivyDoc {
+                retrieved_doc,
+                author,
+                date,
+                filename,
+                full_path,
+                tags,
+                title,
+            }
+            .into();
+            let it = serde_json::to_string(&td).unwrap();
+            println!("{}", it);
+        }
+    } else {
+        // Use interactive fuzzy finder
 
-    // Terminal initialization
-    let stdout = io::stdout().into_raw_mode()?;
-    let stdout = MouseTerminal::from(stdout);
-    let stdout = AlternateScreen::from(stdout);
-    let backend = TermionBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+        // Terminal initialization
+        let stdout = io::stdout().into_raw_mode()?;
+        let stdout = MouseTerminal::from(stdout);
+        let stdout = AlternateScreen::from(stdout);
+        let backend = TermionBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
 
-    // Setup event handlers
-    let events = Events::new();
+        // Setup event handlers
+        let events = Events::new();
 
-    // Create default app state
-    let mut app = QueryApp::default();
+        // Create default app state
+        let mut app = QueryApp::default();
 
-    loop {
-        // Draw UI
-        terminal.draw(|f| {
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .margin(2)
-                .constraints([Constraint::Min(1), Constraint::Length(3)].as_ref())
-                .split(f.size());
+        loop {
+            // Draw UI
+            terminal.draw(|f| {
+                let chunks = Layout::default()
+                    .direction(Direction::Vertical)
+                    .margin(2)
+                    .constraints([Constraint::Min(1), Constraint::Length(3)].as_ref())
+                    .split(f.size());
 
-            let messages: Vec<ListItem> = app
-                .messages
-                .iter()
-                .enumerate()
-                .map(|(i, m)| {
-                    let content = vec![Spans::from(Span::raw(format!("{}: {}", i, m)))];
-                    ListItem::new(content)
-                })
-                .collect();
-            let messages =
-                List::new(messages).block(Block::default().borders(Borders::ALL));
-            f.render_widget(messages, chunks[0]);
+                let messages: Vec<ListItem> = app
+                    .messages
+                    .iter()
+                    .enumerate()
+                    .map(|(i, m)| {
+                        let content = vec![Spans::from(Span::raw(format!("{}: {}", i, m)))];
+                        ListItem::new(content)
+                    })
+                    .collect();
+                let messages = List::new(messages).block(Block::default().borders(Borders::ALL));
+                f.render_widget(messages, chunks[0]);
 
-            let input = Paragraph::new(app.input.as_ref())
-                .style(Style::default().fg(Color::Yellow))
-                .block(Block::default().borders(Borders::ALL));
-            f.render_widget(input, chunks[1]);
-            // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
-            f.set_cursor(
-                // Put cursor past the end of the input text
-                chunks[1].x + app.input.width() as u16 + 1,
-                // Move one line down, from the border to the input line
-                chunks[1].y + 1,
-            )
-        })?;
+                let input = Paragraph::new(app.input.as_ref())
+                    .style(Style::default().fg(Color::Yellow))
+                    .block(Block::default().borders(Borders::ALL));
+                f.render_widget(input, chunks[1]);
+                // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
+                f.set_cursor(
+                    // Put cursor past the end of the input text
+                    chunks[1].x + app.input.width() as u16 + 1,
+                    // Move one line down, from the border to the input line
+                    chunks[1].y + 1,
+                )
+            })?;
 
-        // Handle input
-        if let Event::Input(input) = events.next()? {
-            match input {
-                Key::Char('\n') => {
-                    //app.messages.push(app.input.drain(..).collect());
-                    let query = query_parser.parse_query(&app.input)?;
-                    let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
-
-                    app.messages = Vec::new();
-                    for (_score, doc_address) in top_docs {
-                        let retrieved_doc = searcher.doc(doc_address)?;
-                        app.messages.push(retrieved_doc.get_first(title).unwrap().text().unwrap().into());
+            // Handle input
+            if let Event::Input(input) = events.next()? {
+                match input {
+                    Key::Char('\n') | Key::Ctrl('c') => {
+                        break;
                     }
+                    Key::Char(c) => {
+                        app.input.push(c);
+                        let query = query_parser.parse_query(&app.input)?;
+                        let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
+
+                        app.messages = Vec::new();
+                        for (_score, doc_address) in top_docs {
+                            let retrieved_doc = searcher.doc(doc_address)?;
+                            app.messages.push(
+                                retrieved_doc
+                                    .get_first(title)
+                                    .unwrap()
+                                    .text()
+                                    .unwrap()
+                                    .into(),
+                            );
+                        }
+                    }
+                    Key::Backspace => {
+                        app.input.pop();
+                        let query = query_parser.parse_query(&app.input)?;
+                        let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
+
+                        app.messages = Vec::new();
+                        for (_score, doc_address) in top_docs {
+                            let retrieved_doc = searcher.doc(doc_address)?;
+                            app.messages.push(
+                                retrieved_doc
+                                    .get_first(title)
+                                    .unwrap()
+                                    .text()
+                                    .unwrap()
+                                    .into(),
+                            );
+                        }
+                    }
+                    _ => {}
                 }
-                Key::Ctrl('c') => {
-                    break;
-                }
-                Key::Char(c) => {
-                    app.input.push(c);
-                }
-                Key::Backspace => {
-                    app.input.pop();
-                }
-                _ => {}
             }
         }
     }
+
     Ok(())
 }
 

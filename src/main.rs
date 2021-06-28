@@ -10,6 +10,36 @@ use tantivy::{collector::TopDocs, doc, query::QueryParser, schema::*, Index};
 use toml::Value as tomlVal;
 use yaml_rust::YamlEmitter;
 
+mod util;
+
+use crate::util::event::{Event, Events};
+use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
+use tui::{
+    backend::TermionBackend,
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Modifier, Style},
+    text::{Span, Spans, Text},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
+    Terminal,
+};
+use unicode_width::UnicodeWidthStr;
+
+/// QueryApp holds the state of the application
+struct QueryApp {
+    /// Current value of the input box
+    input: String,
+    /// History of recorded messages
+    messages: Vec<String>,
+}
+
+impl Default for QueryApp {
+    fn default() -> QueryApp {
+        QueryApp {
+            input: String::new(),
+            messages: Vec::new(),
+        }
+    }
+}
 /// Example FrontMatter + Markdown doc to index:
 ///
 /// ---
@@ -198,7 +228,6 @@ fn main() -> tantivy::Result<()> {
                             title => doc.title,
                         ));
                         println!("✅ {}", f);
-
                     } else {
                         println!(
                             "❌ Failed to parse time '{}' from {}",
@@ -250,9 +279,86 @@ fn main() -> tantivy::Result<()> {
         }
     } else {
         // Use interactive fuzzy finder
-
     }
 
+    // Terminal initialization
+    let stdout = io::stdout().into_raw_mode()?;
+    let stdout = MouseTerminal::from(stdout);
+    let stdout = AlternateScreen::from(stdout);
+    let backend = TermionBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    // Setup event handlers
+    let events = Events::new();
+
+    // Create default app state
+    let mut app = QueryApp::default();
+
+    loop {
+        // Draw UI
+        terminal.draw(|f| {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .margin(2)
+                .constraints([Constraint::Min(1), Constraint::Length(3)].as_ref())
+                .split(f.size());
+
+            let (msg, style) = (
+                vec![
+                    Span::raw("Press "),
+                    Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
+                    Span::raw(" to stop editing, "),
+                    Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
+                    Span::raw(" to record the message"),
+                ],
+                Style::default(),
+            );
+
+            let messages: Vec<ListItem> = app
+                .messages
+                .iter()
+                .enumerate()
+                .map(|(i, m)| {
+                    let content = vec![Spans::from(Span::raw(format!("{}: {}", i, m)))];
+                    ListItem::new(content)
+                })
+                .collect();
+            let messages =
+                List::new(messages).block(Block::default().borders(Borders::ALL).title("Messages"));
+            f.render_widget(messages, chunks[0]);
+
+            let input = Paragraph::new(app.input.as_ref())
+                .style(Style::default().fg(Color::Yellow))
+                .block(Block::default().borders(Borders::ALL).title("Input"));
+            f.render_widget(input, chunks[1]);
+            // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
+            f.set_cursor(
+                // Put cursor past the end of the input text
+                chunks[1].x + app.input.width() as u16 + 1,
+                // Move one line down, from the border to the input line
+                chunks[1].y + 1,
+            )
+        })?;
+
+        // Handle input
+        if let Event::Input(input) = events.next()? {
+            match input {
+                Key::Char('\n') => {
+                    app.messages.push(app.input.drain(..).collect());
+                }
+                Key::Ctrl('c') => {
+                    break;
+                }
+                Key::Char(c) => {
+                    app.input.push(c);
+                }
+                Key::Backspace => {
+                    app.input.pop();
+                }
+                _ => {}
+            }
+        }
+    }
     Ok(())
 }
 

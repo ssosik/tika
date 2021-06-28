@@ -1,4 +1,5 @@
 use chrono::{DateTime, FixedOffset};
+use anyhow::{Context, Result};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use glob::{glob, Paths};
 use serde::{de, Deserialize, Deserializer, Serialize};
@@ -147,7 +148,7 @@ impl From<TantivyDoc> for TikaDocument {
     }
 }
 
-fn main() -> tantivy::Result<()> {
+fn main() -> Result<()> {
     color_backtrace::install();
 
     let default_config_file = shellexpand::tilde("~/.config/tika/tika.toml");

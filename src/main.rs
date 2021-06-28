@@ -336,41 +336,27 @@ fn main() -> Result<()> {
                     }
                     Key::Char(c) => {
                         app.input.push(c);
-                        let query = query_parser.parse_query(&app.input)?;
-                        let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
-
-                        app.messages = Vec::new();
-                        for (_score, doc_address) in top_docs {
-                            let retrieved_doc = searcher.doc(doc_address)?;
-                            app.messages.push(
-                                retrieved_doc
-                                    .get_first(title)
-                                    .unwrap()
-                                    .text()
-                                    .unwrap()
-                                    .into(),
-                            );
-                        }
                     }
                     Key::Backspace => {
                         app.input.pop();
-                        let query = query_parser.parse_query(&app.input)?;
-                        let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
-
-                        app.messages = Vec::new();
-                        for (_score, doc_address) in top_docs {
-                            let retrieved_doc = searcher.doc(doc_address)?;
-                            app.messages.push(
-                                retrieved_doc
-                                    .get_first(title)
-                                    .unwrap()
-                                    .text()
-                                    .unwrap()
-                                    .into(),
-                            );
-                        }
                     }
                     _ => {}
+                }
+
+                let query = query_parser.parse_query(&app.input)?;
+                let top_docs = searcher.search(&query, &TopDocs::with_limit(100))?;
+
+                app.messages = Vec::new();
+                for (_score, doc_address) in top_docs {
+                    let retrieved_doc = searcher.doc(doc_address)?;
+                    app.messages.push(
+                        retrieved_doc
+                            .get_first(title)
+                            .unwrap()
+                            .text()
+                            .unwrap()
+                            .into(),
+                    );
                 }
             }
         }

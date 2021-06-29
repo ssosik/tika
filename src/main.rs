@@ -25,8 +25,21 @@ use tui::{
 };
 use unicode_width::UnicodeWidthStr;
 
-/// QueryApp holds the state of the application
-struct QueryApp {
+/// Example FrontMatter + Markdown doc to index:
+///
+/// ---
+/// author: Steve Sosik
+/// date: 2021-06-22T12:48:16-0400
+/// tags:
+/// - tika
+/// title: This is an example note
+/// ---
+///
+/// Some note here formatted with Markdown syntax
+///
+
+/// TerminalApp holds the state of the application
+struct TerminalApp {
     /// Current value of the input box
     input: String,
     /// Query Matches
@@ -35,7 +48,7 @@ struct QueryApp {
     state: ListState,
 }
 
-impl QueryApp {
+impl TerminalApp {
     pub fn next(&mut self) {
         let i = match self.state.selected() {
             Some(i) => {
@@ -65,27 +78,15 @@ impl QueryApp {
     }
 }
 
-impl Default for QueryApp {
-    fn default() -> QueryApp {
-        QueryApp {
+impl Default for TerminalApp {
+    fn default() -> TerminalApp {
+        TerminalApp {
             input: String::new(),
             matches: Vec::new(),
             state: ListState::default(),
         }
     }
 }
-/// Example FrontMatter + Markdown doc to index:
-///
-/// ---
-/// author: Steve Sosik
-/// date: 2021-06-22T12:48:16-0400
-/// tags:
-/// - tika
-/// title: This is an example note
-/// ---
-///
-/// Some note here formatted with Markdown syntax
-///
 
 /// Representation for a given Markdown + FrontMatter file
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -205,6 +206,12 @@ fn main() -> Result<()> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("v")
+                .short("v")
+                .multiple(true)
+                .help("Sets the level of verbosity"),
+        )
+        .arg(
             Arg::with_name("source")
                 .short("s")
                 .value_name("DIRECTORY")
@@ -261,7 +268,9 @@ fn main() -> Result<()> {
                             tags => doc.tags.join(" "),
                             title => doc.title,
                         ));
-                        println!("✅ {}", f);
+                        if cli.occurrences_of("v") > 0 {
+                            println!("✅ {}", f);
+                        }
                     } else {
                         eprintln!(
                             "❌ Failed to parse time '{}' from {}",
@@ -325,7 +334,7 @@ fn main() -> Result<()> {
         let events = Events::new();
 
         // Create default app state
-        let mut app = QueryApp::default();
+        let mut app = TerminalApp::default();
 
         loop {
             // Draw UI

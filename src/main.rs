@@ -360,9 +360,8 @@ fn main() -> Result<()> {
                 let matches: Vec<ListItem> = app
                     .matches
                     .iter()
-                    .enumerate()
-                    .map(|(i, m)| {
-                        let content = vec![Spans::from(Span::raw(format!("{}: {}", i, m)))];
+                    .map(|m| {
+                        let content = vec![Spans::from(Span::raw(format!("{}", m)))];
                         ListItem::new(content)
                     })
                     .collect();

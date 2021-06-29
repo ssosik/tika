@@ -349,9 +349,9 @@ fn main() -> Result<()> {
         loop {
             // Draw UI
             terminal.draw(|f| {
-                let chunks = Layout::default()
+                let panes = Layout::default()
                     .direction(Direction::Vertical)
-                    .margin(2)
+                    .margin(1)
                     .constraints([Constraint::Min(1), Constraint::Length(3)].as_ref())
                     .split(f.size());
                 let selected_style = Style::default().add_modifier(Modifier::REVERSED);
@@ -369,19 +369,19 @@ fn main() -> Result<()> {
                     .block(Block::default().borders(Borders::ALL))
                     .highlight_style(selected_style);
                 //.highlight_symbol("> ");
-                f.render_stateful_widget(matches, chunks[0], &mut app.state);
+                f.render_stateful_widget(matches, panes[0], &mut app.state);
 
                 // Input area where queries are entered
                 let input = Paragraph::new(app.input.as_ref())
                     .style(Style::default().fg(Color::Yellow))
                     .block(Block::default().borders(Borders::ALL));
-                f.render_widget(input, chunks[1]);
+                f.render_widget(input, panes[1]);
                 // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
                 f.set_cursor(
                     // Put cursor past the end of the input text
-                    chunks[1].x + app.input.width() as u16 + 1,
+                    panes[1].x + app.input.width() as u16 + 1,
                     // Move one line down, from the border to the input line
-                    chunks[1].y + 1,
+                    panes[1].y + 1,
                 )
             })?;
 

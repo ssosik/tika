@@ -20,7 +20,7 @@ use tui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
     text::{Span, Spans},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, List, ListItem, Paragraph, ListState},
     Terminal,
 };
 use unicode_width::UnicodeWidthStr;
@@ -31,6 +31,8 @@ struct QueryApp {
     input: String,
     /// Query Matches
     matches: Vec<String>,
+    /// Keep track of which matches are selected
+    state: ListState,
 }
 
 impl Default for QueryApp {
@@ -38,6 +40,7 @@ impl Default for QueryApp {
         QueryApp {
             input: String::new(),
             matches: Vec::new(),
+            state: ListState::default(),
         }
     }
 }
@@ -314,7 +317,7 @@ fn main() -> Result<()> {
                     })
                     .collect();
                 let matches = List::new(matches).block(Block::default().borders(Borders::ALL));
-                f.render_widget(matches, chunks[0]);
+                f.render_stateful_widget(matches, chunks[0], &mut app.state);
 
                 // Input area where queries are entered
                 let input = Paragraph::new(app.input.as_ref())
@@ -342,6 +345,12 @@ fn main() -> Result<()> {
                     Key::Backspace => {
                         app.input.pop();
                     }
+                Key::Down => {
+                    app.next();
+                }
+                Key::Up => {
+                    app.previous();
+                }
                     _ => {}
                 }
 

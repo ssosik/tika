@@ -43,7 +43,7 @@ struct TerminalApp {
     /// Current value of the input box
     input: String,
     /// Query Matches
-    matches: Vec<String>,
+    matches: Vec<TikaDocument>,
     /// Keep track of which matches are selected
     state: ListState,
 }
@@ -52,7 +52,7 @@ impl TerminalApp {
     pub fn get_selected(&mut self) -> Vec<String> {
         let mut ret: Vec<String> = Vec::new();
         if let Some(i) = self.state.selected() {
-            ret.push(self.matches[i].clone());
+            ret.push(self.matches[i].filename.clone());
         };
         ret
     }
@@ -361,7 +361,7 @@ fn main() -> Result<()> {
                     .matches
                     .iter()
                     .map(|m| {
-                        let content = vec![Spans::from(Span::raw(format!("{}", m)))];
+                        let content = vec![Spans::from(Span::raw(format!("{}", m.title)))];
                         ListItem::new(content)
                     })
                     .collect();
@@ -417,14 +417,17 @@ fn main() -> Result<()> {
                 app.matches = Vec::new();
                 for (_score, doc_address) in top_docs {
                     let retrieved_doc = searcher.doc(doc_address)?;
-                    app.matches.push(
-                        retrieved_doc
-                            .get_first(title)
-                            .unwrap()
-                            .text()
-                            .unwrap()
-                            .into(),
-                    );
+                    let td: TikaDocument = TantivyDoc {
+                        retrieved_doc,
+                        author,
+                        date,
+                        filename,
+                        //full_path,
+                        //tags,
+                        title,
+                    }
+                    .into();
+                    app.matches.push(td);
                 }
             }
         }

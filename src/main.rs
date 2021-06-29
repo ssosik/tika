@@ -358,8 +358,8 @@ fn main() -> Result<()> {
                     .collect();
                 let matches = List::new(matches)
                     .block(Block::default().borders(Borders::ALL))
-                    .highlight_style(selected_style)
-                    .highlight_symbol(">> ");
+                    .highlight_style(selected_style);
+                //.highlight_symbol("> ");
                 f.render_stateful_widget(matches, chunks[0], &mut app.state);
 
                 // Input area where queries are entered

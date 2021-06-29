@@ -49,21 +49,12 @@ struct TerminalApp {
 }
 
 impl TerminalApp {
-    pub fn select_items(&mut self) {
-        match self.state.selected() {
-            Some(i) => {
-                println!("Select {}", i);
-                if i >= self.matches.len() - 1 {
-                    0
-                } else {
-                    i + 1
-                }
-            }
-            None => {
-                println!("NONE");
-                return;
-            }
+    pub fn get_selected(&mut self) -> Vec<String> {
+        let mut ret: Vec<String> = Vec::new();
+        if let Some(i) = self.state.selected() {
+            ret.push(self.matches[i].clone());
         };
+        ret
     }
 
     pub fn next(&mut self) {
@@ -309,6 +300,8 @@ fn main() -> Result<()> {
     let searcher = reader.searcher();
     let query_parser = QueryParser::for_index(&index, vec![author, body, filename, tags, title]);
 
+    let mut selected: Vec<String> = Vec::new();
+
     if let Some(cli) = cli.subcommand_matches("query") {
         let query = cli.value_of("query").unwrap();
         println!("Query {}", query);
@@ -397,7 +390,7 @@ fn main() -> Result<()> {
             if let Event::Input(input) = events.next()? {
                 match input {
                     Key::Char('\n') => {
-                        app.select_items();
+                        selected = app.get_selected();
                         println!("DONE");
                         break;
                     }
@@ -438,6 +431,9 @@ fn main() -> Result<()> {
         }
     }
 
+    for sel in selected {
+        println!("{}", sel);
+    }
     Ok(())
 }
 

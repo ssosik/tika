@@ -18,9 +18,9 @@ use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::Altern
 use tui::{
     backend::TermionBackend,
     layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Span, Spans},
-    widgets::{Block, Borders, List, ListItem, Paragraph, ListState},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
     Terminal,
 };
 use unicode_width::UnicodeWidthStr;
@@ -33,6 +33,36 @@ struct QueryApp {
     matches: Vec<String>,
     /// Keep track of which matches are selected
     state: ListState,
+}
+
+impl QueryApp {
+    pub fn next(&mut self) {
+        let i = match self.state.selected() {
+            Some(i) => {
+                if i >= self.matches.len() - 1 {
+                    0
+                } else {
+                    i + 1
+                }
+            }
+            None => 0,
+        };
+        self.state.select(Some(i));
+    }
+
+    pub fn previous(&mut self) {
+        let i = match self.state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    self.matches.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.state.select(Some(i));
+    }
 }
 
 impl Default for QueryApp {
@@ -305,6 +335,7 @@ fn main() -> Result<()> {
                     .margin(2)
                     .constraints([Constraint::Min(1), Constraint::Length(3)].as_ref())
                     .split(f.size());
+                let selected_style = Style::default().add_modifier(Modifier::REVERSED);
 
                 // Output area where match titles are displayed
                 let matches: Vec<ListItem> = app
@@ -316,7 +347,10 @@ fn main() -> Result<()> {
                         ListItem::new(content)
                     })
                     .collect();
-                let matches = List::new(matches).block(Block::default().borders(Borders::ALL));
+                let matches = List::new(matches)
+                    .block(Block::default().borders(Borders::ALL))
+                    .highlight_style(selected_style)
+                    .highlight_symbol(">> ");
                 f.render_stateful_widget(matches, chunks[0], &mut app.state);
 
                 // Input area where queries are entered
@@ -345,12 +379,12 @@ fn main() -> Result<()> {
                     Key::Backspace => {
                         app.input.pop();
                     }
-                Key::Down => {
-                    app.next();
-                }
-                Key::Up => {
-                    app.previous();
-                }
+                    Key::Down => {
+                        app.next();
+                    }
+                    Key::Up => {
+                        app.previous();
+                    }
                     _ => {}
                 }
 

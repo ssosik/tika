@@ -49,6 +49,23 @@ struct TerminalApp {
 }
 
 impl TerminalApp {
+    pub fn select_items(&mut self) {
+        match self.state.selected() {
+            Some(i) => {
+                println!("Select {}", i);
+                if i >= self.matches.len() - 1 {
+                    0
+                } else {
+                    i + 1
+                }
+            }
+            None => {
+                println!("NONE");
+                return;
+            }
+        };
+    }
+
     pub fn next(&mut self) {
         let i = match self.state.selected() {
             Some(i) => {
@@ -312,8 +329,8 @@ fn main() -> Result<()> {
                 author,
                 date,
                 filename,
-                full_path,
-                tags,
+                //full_path,
+                //tags,
                 title,
             }
             .into();
@@ -379,7 +396,12 @@ fn main() -> Result<()> {
             // Handle input
             if let Event::Input(input) = events.next()? {
                 match input {
-                    Key::Char('\n') | Key::Ctrl('c') => {
+                    Key::Char('\n') => {
+                        app.select_items();
+                        println!("DONE");
+                        break;
+                    }
+                    Key::Ctrl('c') => {
                         break;
                     }
                     Key::Char(c) => {
@@ -441,7 +463,9 @@ fn glob_files(cli: &ArgMatches) -> Result<Paths, Box<dyn std::error::Error>> {
     let glob_path = Path::new(&source);
     let glob_str = shellexpand::tilde(glob_path.to_str().unwrap());
 
-    println!("Sourcing Markdown documents matching : {}", glob_str);
+    if cli.occurrences_of("v") > 0 {
+        println!("Sourcing Markdown documents matching : {}", glob_str);
+    }
 
     return Ok(glob(&glob_str)?);
 }
@@ -451,8 +475,8 @@ struct TantivyDoc {
     author: Field,
     date: Field,
     filename: Field,
-    full_path: Field,
-    tags: Field,
+    //full_path: Field,
+    //tags: Field,
     title: Field,
 }
 

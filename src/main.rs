@@ -52,7 +52,9 @@ impl TerminalApp {
     pub fn get_selected(&mut self) -> Vec<String> {
         let mut ret: Vec<String> = Vec::new();
         if let Some(i) = self.state.selected() {
-            ret.push(self.matches[i].filename.clone());
+            if let Some(s) = self.matches[i].full_path.to_str() {
+                ret.push(s.into());
+            }
         };
         ret
     }
@@ -162,6 +164,13 @@ impl From<TantivyDoc> for TikaDocument {
                 .text()
                 .unwrap_or("")
                 .into(),
+            full_path: item
+                .retrieved_doc
+                .get_first(item.full_path)
+                .unwrap()
+                .text()
+                .unwrap_or("")
+                .into(),
             author: item
                 .retrieved_doc
                 .get_first(item.author)
@@ -185,7 +194,6 @@ impl From<TantivyDoc> for TikaDocument {
                 .unwrap_or("")
                 .into(),
             tags: vec![String::from("foo")],
-            full_path: OsString::from(""),
         }
     }
 }
@@ -322,7 +330,7 @@ fn main() -> Result<()> {
                 author,
                 date,
                 filename,
-                //full_path,
+                full_path,
                 //tags,
                 title,
             }
@@ -422,7 +430,7 @@ fn main() -> Result<()> {
                         author,
                         date,
                         filename,
-                        //full_path,
+                        full_path,
                         //tags,
                         title,
                     }
@@ -473,7 +481,7 @@ struct TantivyDoc {
     author: Field,
     date: Field,
     filename: Field,
-    //full_path: Field,
+    full_path: Field,
     //tags: Field,
     title: Field,
 }

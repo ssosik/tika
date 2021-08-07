@@ -6,7 +6,7 @@ XPCORE = xapian-core-$(XPCOREVER)
 XPCOREZ = $(XPCORE).tar.xz
 
 build: $(ZLIB) $(XPCORE)/.libs
-	cargo build
+	CARGO_MANIFEST_DIR=xapian-rust cargo build
 
 test: $(ZLIB) $(XPCORE)/.libs
 	DYLD_LIBRARY_PATH=$(XPCORE)/.libs cargo test
@@ -36,7 +36,7 @@ $(XPCORE)/.libs: $(ZLIB) $(XPCORE)
 	cp omenquire.cc $(XPCORE)/api/
 	# Build it
 	cd $(XPCORE) \
-		&& ./configure CPPFLAGS=-I../$(ZLIB) LDFLAGS=-L../$(ZLIB) \
+		&& ./configure --enable-static CPPFLAGS=-I../$(ZLIB) LDFLAGS=-L../$(ZLIB) \
 		&& $(MAKE)
 
 clean:

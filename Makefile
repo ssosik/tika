@@ -22,6 +22,7 @@ run: $(ZLIB) $(XPCORE)/.libs
 	cargo run
 
 clean:
+	rm -rf $(ZLIB)
 	rm -rf $(XPCORE)
 	cargo clean
 

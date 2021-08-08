@@ -36,7 +36,7 @@ $(XPCOREZ):
 $(ZLIB): $(ZLIBZ)
 	tar -xvzf $(ZLIBZ)
 	cd $(ZLIB) \
-		&& ./configure \
+		&& ./configure --static \
 		&& $(MAKE)
 
 $(XPCORE): $(XPCOREZ)

@@ -5,14 +5,25 @@ XPCOREVER = 1.4.17
 XPCORE = xapian-core-$(XPCOREVER)
 XPCOREZ = $(XPCORE).tar.xz
 
-build: $(ZLIB) $(XPCORE)/.libs
-	CARGO_MANIFEST_DIR=xapian-rust cargo build
+build: target/debug/tika
 
-test: $(ZLIB) $(XPCORE)/.libs
-	DYLD_LIBRARY_PATH=$(XPCORE)/.libs cargo test
+release: target/release/tika
+
+target/debug/tika: $(ZLIB) $(XPCORE)/.libs
+	cargo build
+
+target/release/tika: $(ZLIB) $(XPCORE)/.libs
+	cargo build --release
+
+test:
+	cargo test
 
 run: $(ZLIB) $(XPCORE)/.libs
-	DYLD_LIBRARY_PATH=$(XPCORE)/.libs cargo run
+	cargo run
+
+clean:
+	rm -rf $(XPCORE)
+	cargo clean
 
 # Fetch dependencies
 $(ZLIBZ):
@@ -38,7 +49,3 @@ $(XPCORE)/.libs: $(ZLIB) $(XPCORE)
 	cd $(XPCORE) \
 		&& ./configure --enable-static CPPFLAGS=-I../$(ZLIB) LDFLAGS=-L../$(ZLIB) \
 		&& $(MAKE)
-
-clean:
-	rm -rf $(XPCORE)
-	cargo clean

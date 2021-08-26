@@ -1,3 +1,5 @@
+THIS PROJECT IS ARCHIVED. All work has been migrated to https://github.com/ssosik/xapian-query-cli and https://github.com/ssosik/xapian-rusty
+
 # tika
 
 Things I Know About - A Minimal [Zettelkasten](https://zettelkasten.de/posts/overview/#principles)-inspired Markdown+FrontMatter document indexer and query interface.
